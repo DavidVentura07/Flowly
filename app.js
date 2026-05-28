@@ -207,7 +207,7 @@ function estimateMinutes(exercises) {
 }
 
 // ---- EXERCISES VIEW ----
-const BODIES = ['Todos', 'Cadera', 'Columna', 'Hombros', 'Glúteos', 'Isquiotibiales', 'Cuádriceps', 'Costados', 'Cuello', 'Muñecas'];
+const BODIES = ['Todos', 'Cadera', 'Isquiotibiales', 'Hombros', 'Aductores', 'Glúteos', 'Columna', 'Costados', 'Cuello', 'Cuádriceps', 'Muñecas'];
 
 function renderFilterChips() {
   const container = document.getElementById('filter-chips');
@@ -271,12 +271,19 @@ function openExercise(id) {
   const content = document.getElementById('exercise-modal-content');
   const typeLabel = ex.type === 'time' ? `${ex.defaultDuration}` : `${ex.defaultReps}`;
   const typeUnit = ex.type === 'time' ? 'seg' : 'reps';
-  const embedUrl = `https://www.youtube.com/embed/${ex.videoId}?start=${ex.videoStart}&rel=0&modestbranding=1`;
+
+  const videoBlock = ex.videoId
+    ? `<div class="exercise-detail-video">
+        <iframe src="https://www.youtube.com/embed/${ex.videoId}?start=${ex.videoStart}&rel=0&modestbranding=1"
+          title="${ex.name}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+       </div>`
+    : `<div class="video-placeholder">
+        <span style="font-size:32px">${ex.emoji}</span>
+        <p style="font-size:12px;color:var(--text-3);margin-top:8px">Video próximamente</p>
+       </div>`;
 
   content.innerHTML = `
-    <div class="exercise-detail-video">
-      <iframe src="${embedUrl}" title="${ex.name}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-    </div>
+    ${videoBlock}
     <h2 class="exercise-detail-name">${ex.name}</h2>
     <div class="exercise-detail-tags">
       <span class="detail-tag">${ex.body}</span>
@@ -499,7 +506,16 @@ function renderPlayer() {
   const totalEx = r.exercises.length;
   const sets = item.sets || ex.defaultSets;
   const content = document.getElementById('player-content');
-  const embedUrl = `https://www.youtube.com/embed/${ex.videoId}?start=${ex.videoStart}&rel=0&modestbranding=1`;
+
+  const playerVideoBlock = ex.videoId
+    ? `<div class="player-video">
+        <iframe src="https://www.youtube.com/embed/${ex.videoId}?start=${ex.videoStart}&rel=0&modestbranding=1"
+          title="${ex.name}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+       </div>`
+    : `<div class="player-video" style="background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px">
+        <span style="font-size:48px">${ex.emoji}</span>
+        <p style="font-size:12px;color:var(--text-3)">Video próximamente</p>
+       </div>`;
 
   let progressDots = r.exercises.map((_, i) =>
     `<div class="prog-dot ${i < state.playerIndex ? 'done' : i === state.playerIndex ? 'current' : ''}"></div>`
@@ -548,9 +564,7 @@ function renderPlayer() {
   content.innerHTML = `
     <div class="player-body">
       <div class="player-progress">${progressDots}</div>
-      <div class="player-video">
-        <iframe src="${embedUrl}" title="${ex.name}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-      </div>
+      ${playerVideoBlock}
       <h2 class="player-ex-name">${ex.name}</h2>
       <p class="player-meta">${ex.body} · Ejercicio ${state.playerIndex + 1} de ${totalEx}</p>
       <div class="set-tracker">${setTracker}</div>

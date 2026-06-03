@@ -36,28 +36,17 @@
 }
 
 html {
-  background: #ffffff;
-  /* Fill the home indicator area on iPhone with the nav color */
-  background-color: #ffffff;
+  height: 100%;
+  height: 100dvh;
 }
 
 html, body {
   height: 100%;
-  min-height: 100dvh;
+  height: 100dvh;
+  max-height: 100dvh;
   background: var(--bg);
   color: var(--text-1);
   overflow: hidden;
-}
-
-/* Pseudo-element to cover home indicator gap with nav color */
-body::after {
-  content: '';
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  height: var(--safe-bottom);
-  background: rgba(255,255,255,.96);
-  z-index: 101;
-  pointer-events: none;
 }
 
 /* Prevent iOS Safari zoom on input focus — must be 16px+ */
@@ -98,7 +87,13 @@ input, textarea, select {
 }
 
 /* ── APP SHELL ── */
-#app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+#app {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--real-vh, 100dvh);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
 #app.hidden { display: none; }
 .hidden { display: none !important; }
 

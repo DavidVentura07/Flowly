@@ -36,7 +36,9 @@
 }
 
 html {
-  background: #ffffff; /* matches nav color, covers home indicator gap */
+  background: #ffffff;
+  /* Fill the home indicator area on iPhone with the nav color */
+  background-color: #ffffff;
 }
 
 html, body {
@@ -45,6 +47,17 @@ html, body {
   background: var(--bg);
   color: var(--text-1);
   overflow: hidden;
+}
+
+/* Pseudo-element to cover home indicator gap with nav color */
+body::after {
+  content: '';
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: var(--safe-bottom);
+  background: rgba(255,255,255,.96);
+  z-index: 101;
+  pointer-events: none;
 }
 
 /* Prevent iOS Safari zoom on input focus — must be 16px+ */

@@ -1,4 +1,4 @@
-const CACHE = 'flowly2-v5';
+const CACHE = 'flowly2-v6';
 const ASSETS = ['./', './index.html', './style.css', './app.js', './data.js', './manifest.json',
   'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap'];
 

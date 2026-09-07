@@ -4,10 +4,26 @@
 
 // ── STATE ──
 let S = {
-  exercises:    [],   // { id, name, zone, type, duration, sets, reps, notes, img }
+  // { id, name, zone, type, duration, sets, reps, notes, img,
+  //   variants, variantOrder, pos, fig }
+  exercises:    [],
   routines:     [],   // { id, name, desc, items: [{exId, sets, reps, duration}] }
   activeDays:   [],   // ['2025-05-01', ...]  días en que se hizo al menos un ejercicio
   accentIndex:  0,
+
+  // Ajustes del reproductor (persistidos)
+  cfg: {
+    restRep:     5,     // s entre repeticiones de la misma posición
+    restVariant: 10,    // s entre lados / variantes
+    restEx:      15,    // s al cambiar de ejercicio
+    restBlock:   30,    // s al cambiar de bloque de posición corporal
+    sound:       true,
+    voice:       true,
+    vibrate:     true,
+    oneSide:     false, // solo el primer lado de cada ejercicio unilateral
+    autoAdvance: true,
+  },
+
   // ephemeral
   currentView:  'hoy',
   libTab:       'rutinas',
@@ -18,8 +34,13 @@ let S = {
   editExType:    'time',
   editExZone:    null,
   editExImg:     null,
+  editExVariants: null,      // null | ['Izquierdo','Derecho'] | [...]
+  editExVarOrder: 'block',
   runRoutineId:  null,
   runChecked:    new Set(),
+
+  // reproductor
+  pl: null,            // { routineId, steps, i, left, playing, elapsed, total, tickId }
 };
 
 // ── PERSIST ──
@@ -29,6 +50,7 @@ function persist() {
     routines:    S.routines,
     activeDays:  S.activeDays,
     accentIndex: S.accentIndex,
+    cfg:         S.cfg,
   }));
 }
 
@@ -41,6 +63,7 @@ function hydrate() {
     S.routines    = d.routines    || [];
     S.activeDays  = d.activeDays  || [];
     S.accentIndex = d.accentIndex ?? 0;
+    if (d.cfg) S.cfg = { ...S.cfg, ...d.cfg };
   } catch(e) { console.warn('hydrate error', e); }
 }
 
@@ -49,10 +72,13 @@ function applyAccent(idx) {
   const c = ACCENT_COLORS[idx] || ACCENT_COLORS[0];
   const r = document.documentElement.style;
   r.setProperty('--accent',       c.value);
-  r.setProperty('--accent-light', c.light);
-  r.setProperty('--accent-mid',   c.mid);
-  r.setProperty('--accent-dim',   hexToRgba(c.value, .12));
-  document.getElementById('theme-color-meta').content = c.value;
+  // Sobre fondo casi negro los tintes se construyen con alfa, no con
+  // versiones pálidas del color: cualquier pastel se vería lechoso.
+  r.setProperty('--accent-light', hexToRgba(c.value, .14));
+  r.setProperty('--accent-mid',   hexToRgba(c.value, .45));
+  r.setProperty('--accent-dim',   hexToRgba(c.value, .09));
+  // La barra de estado se queda con el fondo del sistema, no con el acento.
+  document.getElementById('theme-color-meta').content = '#111416';
 }
 
 function hexToRgba(hex, a) {
@@ -73,10 +99,39 @@ function fmtParams(item, ex) {
   const dur   = item.duration ?? ex.duration ?? 0;
   const reps  = item.reps     ?? ex.reps     ?? 0;
   const parts = [];
-  if (sets > 1) parts.push(`${sets} series`);
-  if (ex.type === 'time')  parts.push(`${dur}s`);
-  if (ex.type === 'reps')  parts.push(`${reps} reps`);
+  if (ex.type === 'time') parts.push(sets > 1 ? `${sets} × ${dur} s` : `${dur} s`);
+  else                    parts.push(sets > 1 ? `${sets} × ${reps} reps` : `${reps} reps`);
+  const v = exVariants(ex);
+  if (v) parts.push(v.length === 2 && v[0] === 'Izquierdo' ? 'ambos lados' : `${v.length} variantes`);
   return parts.join(' · ');
+}
+
+// Variantes efectivas de un ejercicio (null si es una sola posición).
+// Respeta el ajuste "solo un lado".
+function exVariants(ex, applyOneSide) {
+  const v = Array.isArray(ex.variants) && ex.variants.length ? ex.variants : null;
+  if (!v) return null;
+  if (applyOneSide && S.cfg.oneSide && v.length === 2) return [v[0]];
+  return v;
+}
+
+// Ilustración del ejercicio: la foto que haya subido el usuario tiene
+// prioridad sobre la lámina que trae la rutina.
+function exIllustration(ex) {
+  if (ex.img) return { kind:'img',   src: ex.img };
+  if (ex.fig) return { kind:'sheet', src: exImageSrc(ex.fig) };
+  return null;
+}
+
+function fmtClock(sec) {
+  sec = Math.max(0, Math.round(sec));
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function fmtDuration(sec) {
+  const m = Math.round(sec / 60);
+  return m < 60 ? `${m} min` : `${Math.floor(m/60)} h ${m%60} min`;
 }
 
 // ── STREAK ──
@@ -172,25 +227,44 @@ function renderHoy() {
   empty.classList.add('hidden');
 
   list.innerHTML = S.routines.map(r => {
-    const preview = r.items.slice(0, 4).map(item => {
+    const preview = r.items.slice(0, 4).map((item, i) => {
       const ex = S.exercises.find(e => e.id === item.exId);
       if (!ex) return '';
       return `<div class="hoy-preview-ex">
-        <div class="hoy-preview-dot"></div>
-        <span>${ex.name} <span style="color:var(--text-3)">${fmtParams(item, ex)}</span></span>
+        <span class="hoy-preview-n">${String(i + 1).padStart(2, '0')}</span>
+        <span class="hoy-preview-name">${ex.name}</span>
+        <span class="hoy-preview-param">${fmtParams(item, ex)}</span>
       </div>`;
     }).join('');
     const more = r.items.length > 4
-      ? `<div class="hoy-preview-ex"><div class="hoy-preview-dot" style="background:var(--border2)"></div><span style="color:var(--text-3)">+${r.items.length - 4} más…</span></div>`
+      ? `<div class="hoy-preview-ex"><span class="hoy-preview-n">··</span>
+           <span class="hoy-preview-name" style="color:var(--text-3)">+${r.items.length - 4} más</span></div>`
       : '';
+    const sum = routineSummary(r);
     return `
       <div class="hoy-routine-card">
         <div class="hoy-routine-card-accent"></div>
         <div class="hoy-routine-card-body">
+          <p class="micro-label">Protocolo</p>
           <h2 class="hoy-routine-name">${r.name}</h2>
-          <p class="hoy-routine-meta">${r.items.length} ejercicio${r.items.length !== 1 ? 's' : ''}</p>
+          <p class="hoy-routine-meta">${r.items.length} ejercicios · ${sum.holds} sostenimientos</p>
+          <div class="hoy-routine-stats">
+            <div class="hoy-stat">
+              <p class="hoy-stat-val">${Math.round(sum.total / 60)}</p>
+              <p class="hoy-stat-lbl">min estimado</p>
+            </div>
+            <div class="hoy-stat on">
+              <p class="hoy-stat-val">${Math.round(sum.hold / 60)}</p>
+              <p class="hoy-stat-lbl">min estiramiento</p>
+            </div>
+            <div class="hoy-stat">
+              <p class="hoy-stat-val">${sum.blocks || 1}</p>
+              <p class="hoy-stat-lbl">bloques</p>
+            </div>
+          </div>
           <div class="hoy-routine-preview">${preview}${more}</div>
-          <button class="btn-primary" onclick="openRun('${r.id}')">Iniciar rutina</button>
+          <button class="btn-primary" onclick="plOpen('${r.id}')">Iniciar rutina guiada</button>
+          <button class="btn-ghost full-btn" style="margin-top:8px" onclick="openRun('${r.id}')">Ver como lista</button>
         </div>
       </div>`;
   }).join('');
@@ -291,13 +365,23 @@ function openExDetail(e, exId) {
   const val  = ex.type === 'time' ? ex.duration : ex.reps;
   const unit = ex.type === 'time' ? 'seg' : 'reps';
   const content = document.getElementById('ex-detail-content');
+  const ill  = exIllustration(ex);
+  const vars = exVariants(ex);
   content.innerHTML = `
-    ${ex.img ? `<img class="ex-detail-img" src="${ex.img}" alt="${ex.name}"/>` : `<div style="width:100%;aspect-ratio:16/9;background:var(--accent-dim);border-radius:var(--radius-sm) var(--radius-sm) 0 0;display:flex;align-items:center;justify-content:center;font-size:52px;margin-bottom:16px">${getEmoji(ex.zone)}</div>`}
+    ${!ill
+      ? `<div style="width:100%;aspect-ratio:16/9;background:var(--accent-dim);border-radius:var(--radius-sm) var(--radius-sm) 0 0;display:flex;align-items:center;justify-content:center;font-size:52px;margin-bottom:16px">${getEmoji(ex.zone)}</div>`
+      : ill.kind === 'img'
+        ? `<img class="ex-detail-img" src="${ill.src}" alt="${ex.name}"/>`
+        : `<img class="ex-detail-sheet" src="${ill.src}" alt=""/>`}
     <h2 class="ex-detail-name">${ex.name}</h2>
     <div class="ex-detail-tags">
       <span class="ex-detail-tag">${ex.zone}</span>
+      ${ex.pos ? `<span class="ex-detail-tag">${ex.pos}</span>` : ''}
       <span class="ex-detail-tag">${ex.type === 'time' ? 'Tiempo' : 'Repeticiones'}</span>
     </div>
+    ${vars ? `<div class="ex-detail-tags" style="margin-top:-6px">
+      ${vars.map(v => `<span class="ex-detail-tag accent">${v}</span>`).join('')}
+    </div>` : ''}
     <div class="ex-detail-params">
       <div class="ex-detail-param">
         <p class="ex-detail-param-val">${val || '—'}</p>
@@ -364,18 +448,21 @@ function renderExerciseList() {
     return;
   }
   el.innerHTML = S.exercises.map(ex => {
-    const val  = ex.type === 'time' ? `${ex.duration}s` : `${ex.reps} reps`;
+    const ill = exIllustration(ex);
+    const thumb = !ill
+      ? `<div class="ex-emoji-badge">${getEmoji(ex.zone)}</div>`
+      : ill.kind === 'img'
+        ? `<div class="ex-card-thumb"><img src="${ill.src}" style="display:block;width:100%"/></div>`
+        : `<div class="ex-card-thumb"><img class="pl-figure-sheet" src="${ill.src}" alt=""/></div>`;
     return `
       <div class="exercise-card" onclick="openExerciseForm('${ex.id}')">
-        <div class="ex-emoji-badge">${getEmoji(ex.zone)}</div>
         <div class="ex-card-info">
+          <p class="ex-card-zone">${ex.zone}${ex.pos ? ' · ' + ex.pos : ''}</p>
           <p class="ex-card-name">${ex.name}</p>
-          <p class="ex-card-meta">
-            <span class="ex-card-tag">${ex.zone}</span>
-            &nbsp;${val} · ${ex.sets || 1} serie${(ex.sets||1)>1?'s':''}
-          </p>
+          <p class="ex-card-meta">${fmtParams({}, ex)}</p>
         </div>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--border2)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+        ${thumb}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
       </div>`;
   }).join('');
 }
@@ -558,6 +645,8 @@ function openExerciseForm(id) {
   S.editExType = 'time';
   S.editExZone = null;
   S.editExImg  = null;
+  S.editExVariants = null;
+  S.editExVarOrder = 'block';
 
   document.getElementById('exercise-form-title').textContent = id ? 'Editar ejercicio' : 'Nuevo ejercicio';
   document.getElementById('ex-delete-btn').style.display = id ? 'block' : 'none';
@@ -570,6 +659,7 @@ function openExerciseForm(id) {
   selectType('time');
   resetImgPreview();
   renderZones();
+  selectVarMode('none');
 
   if (id) {
     const ex = S.exercises.find(e => e.id === id);
@@ -579,6 +669,15 @@ function openExerciseForm(id) {
     selectType(ex.type);
     S.editExZone = ex.zone;
     renderZones();
+    const v = Array.isArray(ex.variants) && ex.variants.length ? ex.variants : null;
+    S.editExVarOrder = ex.variantOrder || 'block';
+    if (!v) selectVarMode('none');
+    else if (v.length === 2 && v[0] === 'Izquierdo' && v[1] === 'Derecho') selectVarMode('lr');
+    else {
+      document.getElementById('ex-variants').value = v.join(', ');
+      selectVarMode('custom');
+    }
+    selectVarOrder(S.editExVarOrder);
     if (ex.type === 'time') {
       document.getElementById('ex-duration').value   = ex.duration || '';
       document.getElementById('ex-sets-time').value  = ex.sets || '';
@@ -605,6 +704,29 @@ function renderZones() {
 function selectZone(z) {
   S.editExZone = z;
   renderZones();
+}
+
+function selectVarMode(mode) {
+  S.editExVarMode = mode;
+  ['none','lr','custom'].forEach(m =>
+    document.getElementById('var-btn-' + m).classList.toggle('active', m === mode));
+  document.getElementById('ex-variants').classList.toggle('hidden', mode !== 'custom');
+  document.getElementById('var-order-wrap').classList.toggle('hidden', mode === 'none');
+}
+
+function selectVarOrder(o) {
+  S.editExVarOrder = o;
+  document.getElementById('varord-btn-block').classList.toggle('active', o === 'block');
+  document.getElementById('varord-btn-cycle').classList.toggle('active', o === 'cycle');
+}
+
+// Lee el editor de variantes y devuelve el array (o null).
+function readVariants() {
+  if (S.editExVarMode === 'lr')   return ['Izquierdo', 'Derecho'];
+  if (S.editExVarMode !== 'custom') return null;
+  const raw = document.getElementById('ex-variants').value
+    .split(',').map(s => s.trim()).filter(Boolean);
+  return raw.length ? raw : null;
 }
 
 function selectType(t) {
@@ -637,6 +759,8 @@ function saveExercise() {
     sets,
     notes:    document.getElementById('ex-notes').value.trim(),
     img:      S.editExImg || null,
+    variants:     readVariants(),
+    variantOrder: S.editExVarOrder || 'block',
   };
 
   if (S.editExId) {
@@ -709,6 +833,7 @@ function renderPerfil() {
 
   renderHeatmap();
   renderColorPalette();
+  renderPlayerSettings();
 }
 
 function renderHeatmap() {
@@ -818,7 +943,7 @@ function launchConfetti() {
     rv: (Math.random() - .5) * .15,
     vx: (Math.random() - .5) * 3,
     vy: 2 + Math.random() * 3,
-    color: [accent, '#fff', '#a5d6a7', '#ffd54f', '#ff8a65'][Math.floor(Math.random()*5)],
+    color: [accent, accent, '#ffbd58', '#e1e2e5', '#6e7c85'][Math.floor(Math.random()*5)],
   }));
   let frame = 0;
   const loop = () => {
@@ -847,4 +972,483 @@ function showToast(msg) {
   t.classList.remove('hidden');
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => t.classList.add('hidden'), 2600);
+}
+
+// ══════════════════════════════════
+// MOTOR DE SECUENCIA
+// Expande una rutina en la lista plana de sostenimientos y descansos
+// que hay que recorrer. Aquí es donde viven los lados y las variantes.
+// ══════════════════════════════════
+function buildSteps(routine) {
+  const c = S.cfg;
+  const steps = [];
+  let prevPos = null;
+
+  const rest = (seconds, label, extra) => {
+    if (seconds > 0) steps.push({ kind:'rest', seconds, label, ...extra });
+  };
+
+  routine.items
+    .map(item => ({ item, ex: S.exercises.find(e => e.id === item.exId) }))
+    .filter(x => x.ex)
+    .forEach(({ item, ex }) => {
+      const reps = item.sets     ?? ex.sets     ?? 1;
+      const dur  = item.duration ?? ex.duration ?? 30;
+      const vars = exVariants(ex, true) || [null];
+      const pos  = ex.pos || null;
+
+      // Preparación antes del ejercicio (más larga si cambia la postura base)
+      if (steps.length) {
+        const blockChange = !!(pos && prevPos && pos !== prevPos);
+        rest(blockChange ? c.restBlock : c.restEx,
+             blockChange ? `Cambio a: ${pos}` : 'Prepárate',
+             { blockChange, nextEx: ex, nextVariant: vars[0], nextRep: 1, nextRepTotal: reps });
+      }
+
+      const hold = (variant, rep) =>
+        steps.push({ kind:'hold', ex, seconds: dur, variant, rep, repTotal: reps, pos });
+
+      if (ex.variantOrder === 'cycle' && vars.length > 1) {
+        // Una pasada por todas las variantes, repetida N veces.
+        // Es como lo describen las hojas 2-1 y 2-4: derecha, izquierda, centro.
+        for (let r = 1; r <= reps; r++) {
+          vars.forEach((v, vi) => {
+            hold(v, r);
+            if (vi < vars.length - 1)
+              rest(c.restVariant, `Cambia a: ${vars[vi + 1]}`,
+                   { nextEx: ex, nextVariant: vars[vi + 1], nextRep: r, nextRepTotal: reps });
+          });
+          if (r < reps)
+            rest(c.restRep, 'Descanso',
+                 { nextEx: ex, nextVariant: vars[0], nextRep: r + 1, nextRepTotal: reps });
+        }
+      } else {
+        // Todas las repeticiones de un lado y después el otro:
+        // se arma la postura una sola vez por lado.
+        vars.forEach((v, vi) => {
+          for (let r = 1; r <= reps; r++) {
+            hold(v, r);
+            if (r < reps)
+              rest(c.restRep, 'Descanso',
+                   { nextEx: ex, nextVariant: v, nextRep: r + 1, nextRepTotal: reps });
+          }
+          if (vi < vars.length - 1)
+            rest(c.restVariant, `Cambia a: ${vars[vi + 1]}`,
+                 { nextEx: ex, nextVariant: vars[vi + 1], nextRep: 1, nextRepTotal: reps });
+        });
+      }
+      prevPos = pos;
+    });
+
+  return steps;
+}
+
+// Resumen de una rutina sin llegar a reproducirla (para las tarjetas de Hoy).
+function routineSummary(routine) {
+  const steps  = buildSteps(routine);
+  const holds  = steps.filter(s => s.kind === 'hold');
+  const total  = steps.reduce((a, s) => a + s.seconds, 0);
+  const hold   = holds.reduce((a, s) => a + s.seconds, 0);
+  const blocks = new Set(holds.map(s => s.pos).filter(Boolean)).size;
+  return { steps, holds: holds.length, total, hold, blocks, exercises: routine.items.length };
+}
+
+// ══════════════════════════════════
+// SEÑALES: sonido, voz, vibración, pantalla encendida
+// ══════════════════════════════════
+let _actx = null;
+function beep(freq = 880, ms = 130, vol = .22) {
+  if (!S.cfg.sound) return;
+  try {
+    _actx = _actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (_actx.state === 'suspended') _actx.resume();
+    const o = _actx.createOscillator(), g = _actx.createGain();
+    o.type = 'sine';
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, _actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001, _actx.currentTime + ms / 1000);
+    o.connect(g); g.connect(_actx.destination);
+    o.start(); o.stop(_actx.currentTime + ms / 1000);
+  } catch (e) {}
+}
+
+function buzz(pattern) {
+  if (!S.cfg.vibrate || !navigator.vibrate) return;
+  try { navigator.vibrate(pattern); } catch (e) {}
+}
+
+function speak(text) {
+  if (!S.cfg.voice || !text || !('speechSynthesis' in window)) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'es-MX';
+    u.rate = 1.05;
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+
+let _wakeLock = null;
+async function acquireWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      _wakeLock = await navigator.wakeLock.request('screen');
+      _wakeLock.addEventListener('release', () => { _wakeLock = null; });
+    }
+  } catch (e) {}
+}
+function releaseWakeLock() {
+  try { if (_wakeLock) _wakeLock.release(); } catch (e) {}
+  _wakeLock = null;
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && S.pl && S.pl.playing) acquireWakeLock();
+});
+
+// ══════════════════════════════════
+// REPRODUCTOR
+// ══════════════════════════════════
+function plOpen(routineId) {
+  const r = S.routines.find(x => x.id === routineId);
+  if (!r) return;
+  const steps = buildSteps(r);
+  if (!steps.length) { showToast('Esta rutina no tiene ejercicios'); return; }
+
+  // offsets acumulados para calcular el progreso en O(1)
+  let acc = 0;
+  const offsets = steps.map(s => { const o = acc; acc += s.seconds; return o; });
+
+  // Un segmento de la barra por bloque de posición corporal. Los descansos
+  // de cambio de bloque cuentan para el bloque nuevo, que es lo que preparan.
+  const blocks = [];
+  steps.forEach(s => {
+    const pos  = (s.kind === 'hold' ? s.pos : s.nextEx && s.nextEx.pos) || '—';
+    const last = blocks[blocks.length - 1];
+    if (last && last.pos === pos) last.seconds += s.seconds;
+    else blocks.push({ pos, seconds: s.seconds, offset: 0 });
+  });
+  let bo = 0;
+  blocks.forEach(b => { b.offset = bo; bo += b.seconds; });
+
+  S.pl = {
+    routineId, steps, offsets, blocks, total: acc,
+    i: 0, left: steps[0].seconds, playing: false,
+    endAt: 0, tickId: null, lastSec: null, finished: false,
+  };
+
+  document.getElementById('pl-segments').innerHTML =
+    blocks.map(b => `<div class="pl-seg" style="flex:${b.seconds}">
+      <div class="pl-seg-fill"></div></div>`).join('');
+
+  document.getElementById('pl-routine').textContent = r.name;
+  document.getElementById('modal-player').classList.remove('hidden');
+  document.getElementById('pl-done').classList.add('hidden');
+  document.getElementById('pl-stage').classList.remove('hidden');
+  document.getElementById('pl-controls').classList.remove('hidden');
+
+  plRender();
+  plPlay();
+}
+
+function plClose() {
+  plPause();
+  releaseWakeLock();
+  try { speechSynthesis.cancel(); } catch (e) {}
+  S.pl = null;
+  document.getElementById('modal-player').classList.add('hidden');
+  renderHoy();
+}
+
+function plPlay() {
+  const p = S.pl; if (!p || p.finished) return;
+  // Con avance manual el paso se queda en 0: reproducir avanza al siguiente.
+  if (p.left <= 0.05) {
+    plGo(p.i + 1);
+    if (!S.pl || S.pl.finished) return;
+  }
+  p.playing = true;
+  p.endAt   = Date.now() + p.left * 1000;
+  clearInterval(p.tickId);
+  p.tickId = setInterval(plTick, 100);
+  acquireWakeLock();
+  plPaintControls();
+  // el primer arranque necesita un gesto para desbloquear el audio en móvil
+  beep(660, 90, .12);
+}
+
+function plPause() {
+  const p = S.pl; if (!p) return;
+  p.playing = false;
+  clearInterval(p.tickId);
+  p.tickId = null;
+  releaseWakeLock();
+  plPaintControls();
+}
+
+function plToggle() {
+  const p = S.pl; if (!p) return;
+  p.playing ? plPause() : plPlay();
+}
+
+function plTick() {
+  const p = S.pl; if (!p || !p.playing) return;
+  p.left = (p.endAt - Date.now()) / 1000;
+
+  if (p.left <= 0) {
+    const wasHold = p.steps[p.i].kind === 'hold';
+    beep(wasHold ? 1040 : 780, 200, .28);
+    buzz(wasHold ? [140, 60, 140] : 90);
+    if (S.cfg.autoAdvance) { plGo(p.i + 1); }
+    else { p.left = 0; plPause(); plPaintTimer(); }
+    return;
+  }
+
+  const sec = Math.ceil(p.left);
+  if (sec !== p.lastSec) {
+    p.lastSec = sec;
+    if (sec <= 3) { beep(760, 80, .16); buzz(45); }
+  }
+  plPaintTimer();
+}
+
+function plGo(idx) {
+  const p = S.pl; if (!p) return;
+  if (idx >= p.steps.length) return plFinish();
+  if (idx < 0) idx = 0;
+  p.i       = idx;
+  p.left    = p.steps[idx].seconds;
+  p.lastSec = null;
+  p.endAt   = Date.now() + p.left * 1000;
+  plRender();
+  plAnnounce();
+}
+
+function plNext() { const p = S.pl; if (p) plGo(p.i + 1); }
+function plPrev() {
+  const p = S.pl; if (!p) return;
+  // si ya avanzó dentro del paso, el primer toque lo reinicia
+  const step = p.steps[p.i];
+  if (step && step.seconds - p.left > 2) plGo(p.i);
+  else plGo(p.i - 1);
+}
+
+function plAnnounce() {
+  const p = S.pl, s = p.steps[p.i];
+  if (!s) return;
+  if (s.kind === 'hold') {
+    speak(s.rep === 1 && s.variant ? `${s.ex.name}. ${s.variant}`
+        : s.rep === 1              ? s.ex.name
+        : `Repetición ${s.rep}`);
+  } else {
+    speak(s.label);
+  }
+}
+
+function plRender() {
+  const p = S.pl; if (!p) return;
+  const s = p.steps[p.i];
+  const resting = s.kind === 'rest';
+  document.getElementById('player').classList.toggle('resting', resting);
+
+  const ex      = resting ? s.nextEx      : s.ex;
+  const variant = resting ? s.nextVariant : s.variant;
+  const rep     = resting ? s.nextRep     : s.rep;
+  const repTot  = resting ? s.nextRepTotal: s.repTotal;
+
+  document.getElementById('pl-block').textContent = (ex && ex.pos) || 'Sesión';
+
+  // ilustración
+  const fig = document.getElementById('pl-figure');
+  const ill = ex ? exIllustration(ex) : null;
+  fig.innerHTML = !ill
+    ? `<div class="pl-figure-fallback">${ex ? getEmoji(ex.zone) : '🌿'}</div>`
+    : ill.kind === 'img'
+      ? `<img src="${ill.src}" alt=""/>`
+      : `<img class="pl-figure-sheet" src="${ill.src}" alt=""/>`;
+
+  // núcleo: repetición, y el bloque grande con el lado o el cambio de postura
+  document.getElementById('pl-rep').innerHTML = resting
+    ? `<span class="pl-rep-lbl">Fase de descanso</span> <span class="pl-rep-n">${s.seconds}</span><span class="pl-rep-tot">s totales</span>`
+    : repTot > 1
+      ? `<span class="pl-rep-lbl">Repetición</span> <span class="pl-rep-n">${String(rep).padStart(2,'0')}</span><span class="pl-rep-tot">/ ${String(repTot).padStart(2,'0')}</span>`
+      : `<span class="pl-rep-lbl">Sostén</span>`;
+
+  document.getElementById('pl-side').textContent =
+    resting ? s.label : (variant || 'Sostén');
+
+  document.getElementById('pl-name').textContent = ex ? ex.name : '';
+
+  const chips = [];
+  if (ex && ex.zone) chips.push(`<span class="pl-chip">${ex.zone}</span>`);
+  if (ex && ex.pos)  chips.push(`<span class="pl-chip">${ex.pos}</span>`);
+  if (resting && variant) chips.push(`<span class="pl-chip pl-chip-accent">${variant}</span>`);
+  document.getElementById('pl-chips').innerHTML = chips.join('');
+
+  document.getElementById('pl-note-label').textContent = resting ? 'Acomódate' : 'Indicación';
+  document.getElementById('pl-notes').textContent = ex && ex.notes ? ex.notes : '';
+
+  // Qué sigue: el próximo sostenimiento que realmente cambie algo
+  // (no la siguiente repetición del mismo lado, que no aporta nada).
+  // En los descansos el escenario ya es la vista previa, así que ahí va
+  // el botón de alargar en su lugar.
+  const curId = ex ? ex.id : null;
+  const nx = resting ? null : p.steps.slice(p.i + 1).find(x =>
+    x.kind === 'hold' && (x.ex.id !== curId || x.variant !== variant));
+  document.getElementById('pl-next').innerHTML =
+      resting ? `<button class="pl-plus" onclick="plAddTime(10)">+10 s</button>`
+    : nx ? `<span class="pl-next-label">Sigue</span><span class="pl-next-name">${nx.ex.name}${nx.variant ? ' · ' + nx.variant : ''}</span>`
+    : `<span class="pl-next-label">Último</span><span class="pl-next-name">¡ya casi!</span>`;
+
+  plPaintTimer();
+  plPaintControls();
+}
+
+// Alarga el paso actual (útil en los descansos, cuando la postura cuesta).
+function plAddTime(sec) {
+  const p = S.pl; if (!p) return;
+  p.left += sec;
+  p.steps[p.i].seconds += sec;
+  p.total += sec;
+  for (let k = p.i + 1; k < p.offsets.length; k++) p.offsets[k] += sec;
+  const b = p.blocks.find(x => p.offsets[p.i] >= x.offset && p.offsets[p.i] < x.offset + x.seconds);
+  if (b) b.seconds += sec;
+  if (p.playing) p.endAt += sec * 1000;
+  document.getElementById('pl-rep').innerHTML =
+    `<span class="pl-rep-lbl">Fase de descanso</span> <span class="pl-rep-n">${p.steps[p.i].seconds}</span><span class="pl-rep-tot">s totales</span>`;
+  plPaintTimer();
+}
+
+function plPaintTimer() {
+  const p = S.pl; if (!p) return;
+  const s = p.steps[p.i];
+  const left = Math.max(0, p.left);
+
+  document.getElementById('pl-timer').textContent = Math.ceil(left);
+
+  const frac = s.seconds ? left / s.seconds : 0;
+  document.getElementById('pl-gauge-fill').style.width = (frac * 100) + '%';
+
+  const elapsed = p.offsets[p.i] + (s.seconds - left);
+
+  // barra segmentada: cada bloque se llena por separado
+  const segs = document.querySelectorAll('#pl-segments .pl-seg-fill');
+  p.blocks.forEach((b, k) => {
+    if (!segs[k]) return;
+    const f = Math.max(0, Math.min(1, (elapsed - b.offset) / b.seconds));
+    segs[k].style.width = (f * 100) + '%';
+  });
+
+  document.getElementById('pl-elapsed').textContent = fmtClock(elapsed);
+  document.getElementById('pl-remain').textContent  = '−' + fmtClock(p.total - elapsed);
+
+  const holdsTotal = p.steps.filter(x => x.kind === 'hold').length;
+  const holdsDone  = p.steps.slice(0, p.i + 1).filter(x => x.kind === 'hold').length;
+  document.getElementById('pl-count').textContent = `${holdsDone} / ${holdsTotal}`;
+}
+
+function plPaintControls() {
+  const p = S.pl; if (!p) return;
+  document.getElementById('pl-play').innerHTML = p.playing
+    ? `<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>`
+    : `<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l11 7-11 7z"/></svg>`;
+}
+
+function plFinish() {
+  const p = S.pl; if (!p) return;
+  plPause();
+  p.finished = true;
+  markActiveToday();
+  const r = S.routines.find(x => x.id === p.routineId);
+  const streak = calcStreak();
+
+  document.getElementById('pl-stage').classList.add('hidden');
+  document.getElementById('pl-controls').classList.add('hidden');
+  const done = document.getElementById('pl-done');
+  done.classList.remove('hidden');
+  done.innerHTML = `
+    <p class="micro-label">Protocolo completado</p>
+    <p class="pl-done-num">${p.steps.filter(x => x.kind === 'hold').length}</p>
+    <p class="pl-done-lbl">sostenimientos</p>
+    <h2 class="complete-title">${r ? r.name : 'Rutina'}</h2>
+    <p class="complete-sub">Sesión cerrada en ${fmtDuration(p.total)}.<br>
+      ${streak > 1 ? `Racha de <strong>${streak} días</strong>.` : 'Primer día de racha.'}</p>
+    <button class="btn-primary full-btn" onclick="plClose()">Volver al inicio</button>`;
+  document.querySelectorAll('#pl-segments .pl-seg-fill').forEach(el => el.style.width = '100%');
+  document.getElementById('player').classList.remove('resting');
+  speak('Sesión completa. Buen trabajo.');
+  buzz([200, 80, 200]);
+  launchConfetti();
+  renderPerfil();
+}
+
+// ══════════════════════════════════
+// AJUSTES DEL REPRODUCTOR
+// ══════════════════════════════════
+function renderPlayerSettings() {
+  const c = S.cfg;
+  const toggle = (key, label, hint) => `
+    <div class="cfg-row">
+      <div><p class="cfg-label">${label}</p>${hint ? `<p class="cfg-hint">${hint}</p>` : ''}</div>
+      <button class="cfg-switch ${c[key] ? 'on' : ''}" onclick="cfgToggle('${key}')"><span></span></button>
+    </div>`;
+  const num = (key, label, hint, min, max) => `
+    <div class="cfg-row">
+      <div><p class="cfg-label">${label}</p>${hint ? `<p class="cfg-hint">${hint}</p>` : ''}</div>
+      <div class="cfg-stepper">
+        <button onclick="cfgStep('${key}',-5,${min},${max})">−</button>
+        <span id="cfg-${key}">${c[key]}s</span>
+        <button onclick="cfgStep('${key}',5,${min},${max})">+</button>
+      </div>
+    </div>`;
+
+  document.getElementById('player-settings').innerHTML =
+    num('restRep',     'Entre repeticiones', 'Soltar y volver a la postura', 0, 60) +
+    num('restVariant', 'Entre lados',        'Cambio de pierna o variante',  0, 60) +
+    num('restEx',      'Entre ejercicios',   'Acomodarte en la nueva postura', 0, 120) +
+    num('restBlock',   'Al cambiar de bloque', 'De pie → piso, etc.',        0, 180) +
+    toggle('autoAdvance', 'Avance automático', 'Pasa solo al terminar cada tiempo') +
+    toggle('sound',       'Sonido',            'Pitido en los últimos 3 s y al terminar') +
+    toggle('voice',       'Voz',               'Dice el ejercicio y el lado en voz alta') +
+    toggle('vibrate',     'Vibración',         'Solo en móvil') +
+    toggle('oneSide',     'Solo un lado',      'Salta el segundo lado de los ejercicios unilaterales');
+}
+
+function cfgToggle(key) {
+  S.cfg[key] = !S.cfg[key];
+  persist();
+  renderPlayerSettings();
+  renderHoy();
+}
+
+function cfgStep(key, delta, min, max) {
+  S.cfg[key] = Math.min(max, Math.max(min, (S.cfg[key] || 0) + delta));
+  persist();
+  renderPlayerSettings();
+  renderHoy();
+}
+
+// ══════════════════════════════════
+// SEMILLA: rutina de movilidad
+// ══════════════════════════════════
+function seedRoutine() {
+  const existing = new Set(S.exercises.map(e => e.id));
+  let added = 0;
+  MOBILITY_EXERCISES.forEach(ex => {
+    if (!existing.has(ex.id)) { S.exercises.push({ ...ex }); added++; }
+    else {
+      // refresca contenido pero respeta la foto que el usuario haya puesto
+      const i = S.exercises.findIndex(e => e.id === ex.id);
+      S.exercises[i] = { ...ex, img: S.exercises[i].img };
+    }
+  });
+
+  const ri = S.routines.findIndex(r => r.id === MOBILITY_ROUTINE.id);
+  if (ri === -1) S.routines.unshift(JSON.parse(JSON.stringify(MOBILITY_ROUTINE)));
+  else           S.routines[ri] = { ...S.routines[ri], items: JSON.parse(JSON.stringify(MOBILITY_ROUTINE.items)) };
+
+  persist();
+  renderHoy();
+  renderLibrary();
+  showToast(added ? `Rutina cargada · ${added} ejercicios` : 'Rutina actualizada ✓');
+  navigate('hoy');
 }

@@ -1,0 +1,8 @@
+# Material de referencia privado. NO subir: las láminas originales llevan
+# impreso el nombre del paciente y del médico, y el contexto contiene el
+# diagnóstico. Las ilustraciones que usa la app viven recortadas en assets/,
+# sin ningún texto.
+ampliacion/
+
+# Backups exportados desde la propia app
+flowly_backup_*.json

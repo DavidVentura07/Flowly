@@ -1,11 +1,11 @@
 {
   "name": "Flowly",
   "short_name": "Flowly",
-  "description": "Tu rutina de estiramiento diario",
+  "description": "Estiramientos, fuerza y bloques de 10 minutos, guiados",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#111416",
-  "theme_color": "#111416",
+  "background_color": "#FAFAF8",
+  "theme_color": "#FAFAF8",
   "orientation": "portrait",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },

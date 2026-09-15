@@ -3,25 +3,33 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"/>
-  <meta name="theme-color" content="#111416" id="theme-color-meta"/>
+  <meta name="theme-color" content="#FAFAF8" id="theme-color-meta"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
   <meta name="apple-mobile-web-app-title" content="Flowly"/>
   <title>Flowly</title>
   <link rel="manifest" href="manifest.json"/>
   <link rel="apple-touch-icon" href="icons/icon-180.png"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
 
+<!-- Marca: trazo y brote del logotipo -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo-mark" viewBox="10 8 48 32">
+    <path d="M16 34C16 34 22 26 28 20C34 14 42 12 48 16C54 20 54 28 48 32C42 36 34 34 28 28" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="28" cy="20" r="3" fill="#A5D6A7"/>
+  </symbol>
+</svg>
+
 <!-- SPLASH -->
 <div id="splash">
   <div class="splash-inner">
-    <img src="icons/icon-180.png" class="splash-logo" alt="Flowly"/>
-    <p class="splash-wordmark">flowly</p>
+    <svg class="splash-mark"><use href="#logo-mark"/></svg>
+    <p class="splash-wordmark">Flowly</p>
   </div>
 </div>
 
@@ -30,202 +38,206 @@
 
   <!-- ── HOY ── -->
   <div id="view-hoy" class="view active">
-    <div class="hoy-header">
-      <div class="hoy-header-top">
-        <div>
-          <p class="hoy-label" id="hoy-date"></p>
-          <h1 class="hoy-title" id="hoy-greeting"></h1>
-        </div>
-        <div class="streak-badge" onclick="navigate('perfil')">
-          <span class="streak-fire">🔥</span>
-          <span class="streak-count" id="streak-badge-count">0</span>
-        </div>
-      </div>
-    </div>
+    <header class="top-bar">
+      <div class="brand"><svg class="brand-mark"><use href="#logo-mark"/></svg><span>Flowly</span></div>
+      <button class="streak-badge" onclick="navigate('perfil')" aria-label="Racha">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3.5-1.5 5.3-2.6 7.2C8.2 11.3 8 13 9 14.5c-2-.3-3-2-3-3.8C4.2 12.3 3.5 14.3 3.5 16c0 3.9 3.8 6 8.5 6s8.5-2.4 8.5-6.6c0-4.8-4-6.4-4.9-10.4-1 1.8-1.4 3.2-1.2 4.6C12.8 8.3 13.8 5.2 12 2z"/></svg>
+        <span id="streak-badge-count">0</span><span class="streak-unit">días</span>
+      </button>
+    </header>
 
-    <div class="scroll-area" id="hoy-scroll">
-      <div id="hoy-routines-list"></div>
-      <div id="hoy-empty" class="empty-hoy hidden">
-        <p class="empty-hoy-emoji">🌿</p>
-        <p class="empty-hoy-title">Sin rutinas todavía</p>
-        <p class="empty-hoy-sub">Carga la rutina del doctor o crea la tuya en Biblioteca</p>
-        <button class="btn-primary" onclick="seedRoutine()" style="margin-top:20px">Cargar rutina de movilidad</button>
-        <button class="btn-ghost full-btn" onclick="navigate('biblioteca')" style="margin-top:10px">Ir a Biblioteca</button>
+    <div class="scroll-area">
+      <p class="eyebrow" id="hoy-date"></p>
+      <h1 class="hero-title" id="hoy-greeting"></h1>
+
+      <div id="hoy-banner"></div>
+      <div id="hoy-session"></div>
+      <div id="hoy-blocks"></div>
+      <div id="hoy-others"></div>
+
+      <div id="hoy-empty" class="card empty-hoy hidden">
+        <svg class="empty-mark"><use href="#logo-mark"/></svg>
+        <p class="empty-title">Sin rutinas todavía</p>
+        <p class="empty-sub">Carga el plan completo —estiramientos, fuerza y bloques de 10 minutos— o crea tus rutinas en Biblioteca.</p>
+        <button class="btn-primary" onclick="seedRoutine()">Cargar rutinas</button>
+        <button class="btn-secondary" onclick="navigate('biblioteca')">Ir a Biblioteca</button>
       </div>
-      <div style="height:32px"></div>
+      <div class="scroll-end"></div>
     </div>
   </div>
 
   <!-- ── BIBLIOTECA ── -->
   <div id="view-biblioteca" class="view">
-    <div class="lib-header">
-      <h1 class="view-title">Biblioteca</h1>
-      <div style="display:flex;gap:8px">
-        <button class="pill-tab active" id="tab-rutinas" onclick="switchTab('rutinas')">Rutinas</button>
-        <button class="pill-tab" id="tab-ejercicios" onclick="switchTab('ejercicios')">Ejercicios</button>
+    <header class="top-bar">
+      <div class="brand"><svg class="brand-mark"><use href="#logo-mark"/></svg><span>Biblioteca</span></div>
+    </header>
+    <div class="lib-tabs">
+      <div class="seg seg-lg">
+        <button class="seg-btn active" id="tab-rutinas" onclick="switchTab('rutinas')">Rutinas <span class="count" id="tab-rutinas-count">0</span></button>
+        <button class="seg-btn" id="tab-ejercicios" onclick="switchTab('ejercicios')">Ejercicios <span class="count" id="tab-ejercicios-count">0</span></button>
       </div>
     </div>
 
-    <!-- Rutinas panel -->
-    <div id="panel-rutinas" class="lib-panel scroll-area">
-      <button class="add-card" onclick="openCreateRoutine()">
-        <span class="add-card-icon">+</span>
-        <span>Nueva rutina</span>
-      </button>
+    <div id="panel-rutinas" class="scroll-area">
+      <button class="add-card" onclick="openCreateRoutine()"><span class="add-icon">+</span>Nueva rutina</button>
       <div id="routine-list"></div>
-      <div style="height:32px"></div>
+      <div class="scroll-end"></div>
     </div>
 
-    <!-- Ejercicios panel -->
-    <div id="panel-ejercicios" class="lib-panel scroll-area hidden">
-      <button class="add-card" onclick="openExerciseForm()">
-        <span class="add-card-icon">+</span>
-        <span>Nuevo ejercicio</span>
-      </button>
+    <div id="panel-ejercicios" class="scroll-area hidden">
+      <input type="search" class="form-input search-input" id="ex-search" placeholder="Buscar por nombre o zona…" oninput="renderExerciseList()"/>
+      <div class="chip-scroll" id="ex-filter"></div>
+      <button class="add-card" onclick="openExerciseForm()"><span class="add-icon">+</span>Nuevo ejercicio</button>
       <div id="exercise-list"></div>
-      <div style="height:32px"></div>
+      <div class="scroll-end"></div>
     </div>
   </div>
 
   <!-- ── PERFIL ── -->
   <div id="view-perfil" class="view">
-    <div class="lib-header">
-      <h1 class="view-title">Perfil</h1>
-    </div>
+    <header class="top-bar">
+      <div class="brand"><svg class="brand-mark"><use href="#logo-mark"/></svg><span>Perfil</span></div>
+    </header>
     <div class="scroll-area">
-      <!-- Racha hero -->
-      <div class="streak-hero">
-        <div class="streak-hero-inner">
-          <p class="streak-hero-num" id="streak-hero-num">0</p>
-          <p class="streak-hero-label">días de racha</p>
+      <section class="streak-hero">
+        <p class="eyebrow on-dark">Constancia</p>
+        <p class="streak-hero-row"><span class="streak-hero-num" id="streak-hero-num">0</span><span class="streak-hero-label" id="streak-hero-label">días de racha</span></p>
+        <p class="streak-meta" id="streak-meta"></p>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title sm">Historial</h2>
+        <p class="card-meta">Últimas 12 semanas</p>
+        <div class="heatmap" id="heatmap-grid"></div>
+        <div class="heat-legend">
+          <span>Menos</span><i class="heat-cell l1"></i><i class="heat-cell l2"></i><i class="heat-cell l3"></i><i class="heat-cell l4"></i><span>Más</span>
         </div>
-        <div class="streak-meta" id="streak-meta"></div>
-      </div>
-      <!-- Heatmap -->
-      <h2 class="section-label">Historial</h2>
-      <div class="heatmap-wrap">
-        <div class="heatmap-grid" id="heatmap-grid"></div>
-        <div class="heatmap-legend">
-          <span style="color:var(--text-3);font-size:11px">Menos</span>
-          <div class="legend-dot" style="opacity:.2"></div>
-          <div class="legend-dot" style="opacity:.5"></div>
-          <div class="legend-dot" style="opacity:.8"></div>
-          <div class="legend-dot"></div>
-          <span style="color:var(--text-3);font-size:11px">Más</span>
-        </div>
-      </div>
-      <!-- Reproductor -->
-      <h2 class="section-label" style="margin-top:28px">Rutina guiada</h2>
-      <div class="settings-card" id="player-settings"></div>
-      <!-- Ajustes -->
-      <h2 class="section-label" style="margin-top:28px">Personalización</h2>
-      <div class="settings-card">
-        <p class="settings-row-label">Color de acento</p>
-        <div class="color-palette" id="color-palette"></div>
-      </div>
-      <!-- Data -->
-      <h2 class="section-label" style="margin-top:20px">Datos</h2>
-      <button class="data-btn full-btn" style="margin-bottom:8px" onclick="seedRoutine()">
-        🩺&nbsp; Cargar / actualizar rutina de movilidad
-      </button>
-      <div class="data-row">
+      </section>
+
+      <h2 class="section-label">Sesión guiada</h2>
+      <section class="card cfg-card" id="cfg-session"></section>
+
+      <h2 class="section-label">Fuerza</h2>
+      <section class="card cfg-card" id="cfg-strength"></section>
+
+      <h2 class="section-label">Bloques de 10 minutos</h2>
+      <section class="card cfg-card" id="cfg-blocks"></section>
+
+      <h2 class="section-label">Estiramientos · descansos</h2>
+      <section class="card cfg-card" id="cfg-stretch"></section>
+
+      <h2 class="section-label">Tono de acento</h2>
+      <section class="card">
+        <div class="palette" id="color-palette"></div>
+      </section>
+
+      <h2 class="section-label">Datos</h2>
+      <section class="card cfg-card">
+        <button class="data-btn" onclick="seedRoutine()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><polyline points="21 3 21 9 15 9"/></svg>
+          <span><strong>Cargar / actualizar rutinas</strong><em>Refresca el plan sin tocar tus fotos ni tus días</em></span>
+        </button>
         <button class="data-btn" onclick="exportData()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Exportar backup
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span><strong>Exportar backup</strong><em>Archivo .json con todo</em></span>
         </button>
         <button class="data-btn" onclick="triggerImport()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          Importar backup
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span><strong>Importar backup</strong><em>Reemplaza los datos actuales</em></span>
         </button>
-      </div>
+      </section>
       <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(event)"/>
-      <div style="height:40px"></div>
+      <div class="scroll-end"></div>
     </div>
   </div>
 
-  <!-- BOTTOM NAV -->
+  <!-- NAVEGACIÓN -->
   <nav class="bottom-nav">
     <button class="nav-btn active" data-view="hoy" onclick="navigate('hoy')">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
       <span>Hoy</span>
     </button>
     <button class="nav-btn" data-view="biblioteca" onclick="navigate('biblioteca')">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
       <span>Biblioteca</span>
     </button>
     <button class="nav-btn" data-view="perfil" onclick="navigate('perfil')">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V11"/><path d="M12 11c0-4 3-7 8-7 0 4-3 7-8 7z"/><path d="M12 14c0-3-2.5-5.5-7-5.5 0 3 2.5 5.5 7 5.5z"/></svg>
       <span>Perfil</span>
     </button>
   </nav>
 </div>
 
-<!-- ══ MODAL: EJECUTAR RUTINA ══ -->
+<!-- ══ MODAL: MODO LISTA ══ -->
 <div id="modal-run" class="modal-overlay hidden">
-  <div class="run-sheet" id="run-sheet">
-    <div class="run-header">
+  <div class="sheet run-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
       <div>
-        <p class="run-label">Rutina</p>
-        <h2 class="run-title" id="run-title"></h2>
+        <p class="eyebrow" id="run-label">Rutina</p>
+        <h2 class="sheet-title" id="run-title"></h2>
       </div>
-      <button class="close-btn" onclick="closeRun()">
+      <button class="close-btn" onclick="closeRun()" aria-label="Cerrar">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
-    <div class="run-progress-bar"><div class="run-progress-fill" id="run-progress-fill"></div></div>
-    <div class="run-body scroll-area" id="run-body"></div>
-    <div class="run-footer">
+    <div class="track"><div class="track-fill" id="run-progress-fill"></div></div>
+    <div class="sheet-scroll" id="run-body"></div>
+    <div class="sheet-footer">
       <p class="run-footer-count" id="run-footer-count"></p>
-      <button class="btn-primary full-btn" id="run-complete-btn" onclick="completeRun()">Marcar sesión completa</button>
+      <button class="btn-primary" id="run-complete-btn" onclick="completeRun()">Marcar como hecha</button>
     </div>
   </div>
 </div>
 
-<!-- ══ MODAL: RUTINA GUIADA (REPRODUCTOR) ══ -->
+<!-- ══ MODAL: REPRODUCTOR ══ -->
 <div id="modal-player" class="modal-overlay hidden">
   <div class="player" id="player">
 
-    <!-- barra de contexto -->
     <div class="pl-top">
-      <button class="pl-close" onclick="plClose()" aria-label="Cerrar">
+      <button class="close-btn" onclick="plClose()" aria-label="Cerrar">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
       <div class="pl-top-mid">
-        <p class="micro-label">Protocolo</p>
         <p class="pl-routine" id="pl-routine"></p>
+        <p class="pl-block"><span class="pl-dot"></span><span id="pl-block"></span></p>
       </div>
-      <div class="pl-pos" id="pl-pos"><span class="pl-pos-dot"></span><span id="pl-block"></span></div>
+      <div class="pl-top-spacer"></div>
     </div>
 
-    <!-- un segmento por bloque de posición -->
     <div class="pl-segments" id="pl-segments"></div>
 
-    <div class="pl-scroll scroll-area" id="pl-stage">
-      <!-- núcleo de telemetría -->
+    <div class="pl-scroll" id="pl-stage">
       <div class="pl-core">
-        <p class="pl-rep" id="pl-rep"></p>
-        <p class="pl-timer" id="pl-timer">10</p>
-        <div class="pl-gauge"><div class="pl-gauge-fill" id="pl-gauge-fill"></div></div>
+        <p class="pl-phase" id="pl-phase"></p>
+        <div class="pl-ring">
+          <svg viewBox="0 0 200 200" aria-hidden="true">
+            <circle class="pl-ring-track" cx="100" cy="100" r="92"/>
+            <circle class="pl-ring-fill" id="pl-ring-fill" cx="100" cy="100" r="92" stroke-dasharray="578.05" stroke-dashoffset="0"/>
+          </svg>
+          <div class="pl-ring-center">
+            <p class="pl-timer" id="pl-timer">10</p>
+            <p class="pl-unit" id="pl-unit">segundos</p>
+          </div>
+        </div>
         <div class="pl-side" id="pl-side"></div>
       </div>
 
-      <!-- ejercicio actual -->
-      <div class="pl-card">
-        <p class="micro-label">Ejercicio actual</p>
+      <section class="pl-card">
+        <p class="eyebrow" id="pl-name-label">Ejercicio actual</p>
         <h2 class="pl-name" id="pl-name"></h2>
-        <div class="pl-chips" id="pl-chips"></div>
-      </div>
+        <div class="chip-row" id="pl-chips"></div>
+        <div class="setup-box hidden" id="pl-setup"></div>
+      </section>
 
-      <!-- ilustración -->
-      <div class="pl-card pl-fig-card" id="pl-fig-card">
+      <section class="pl-card pl-fig-card">
         <div class="pl-figure" id="pl-figure"></div>
-      </div>
+      </section>
 
-      <!-- instrucción -->
-      <div class="pl-card pl-note" id="pl-note-card">
-        <p class="micro-label" id="pl-note-label">Indicación</p>
+      <section class="pl-card" id="pl-note-card">
+        <p class="eyebrow" id="pl-note-label">Indicación</p>
         <p class="pl-notes" id="pl-notes"></p>
-      </div>
+      </section>
     </div>
 
     <div class="pl-done hidden" id="pl-done"></div>
@@ -234,173 +246,186 @@
       <div class="pl-next" id="pl-next"></div>
       <div class="pl-controls">
         <button class="pl-btn" onclick="plPrev()" aria-label="Anterior">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM19 5l-11 7 11 7z"/></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM19 5.5v13L8.5 12z"/></svg>
         </button>
-        <button class="pl-btn pl-btn-main" id="pl-play" onclick="plToggle()" aria-label="Reproducir"></button>
+        <div class="pl-main-wrap">
+          <button class="pl-btn-main" id="pl-play" onclick="plToggle()" aria-label="Reproducir"></button>
+          <span class="pl-play-lbl" id="pl-play-lbl"></span>
+        </div>
         <button class="pl-btn" onclick="plNext()" aria-label="Siguiente">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM5 5l11 7-11 7z"/></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM5 5.5v13L15.5 12z"/></svg>
         </button>
       </div>
       <div class="pl-metrics">
-        <div class="pl-metric">
-          <p class="micro-label">Transcurrido</p>
-          <p class="pl-metric-val" id="pl-elapsed">0:00</p>
-        </div>
-        <div class="pl-metric">
-          <p class="micro-label">Contador</p>
-          <p class="pl-metric-val lime" id="pl-count">0 / 0</p>
-        </div>
-        <div class="pl-metric">
-          <p class="micro-label">Restante</p>
-          <p class="pl-metric-val amber" id="pl-remain">0:00</p>
-        </div>
+        <span id="pl-elapsed">0:00</span>
+        <span class="pl-count" id="pl-count">0 / 0</span>
+        <span id="pl-remain">−0:00</span>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ══ MODAL: CREAR/EDITAR RUTINA ══ -->
+<!-- ══ MODAL: RUTINA ══ -->
 <div id="modal-routine" class="modal-overlay hidden">
-  <div class="form-sheet" id="routine-sheet">
+  <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-header">
       <h2 class="sheet-title" id="routine-form-title">Nueva rutina</h2>
-      <button class="close-btn" onclick="closeRoutineForm()">
+      <button class="close-btn" onclick="closeRoutineForm()" aria-label="Cerrar">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
-    <div class="form-scroll">
+    <div class="sheet-scroll">
       <div class="form-group">
-        <label class="form-label">Nombre</label>
+        <label class="form-label" for="routine-name">Nombre</label>
         <input type="text" id="routine-name" class="form-input" placeholder="Ej: Estiramiento nocturno"/>
       </div>
       <div class="form-group">
-        <label class="form-label">Descripción <span class="optional">opcional</span></label>
+        <label class="form-label" for="routine-desc">Descripción <span class="optional">opcional</span></label>
         <input type="text" id="routine-desc" class="form-input" placeholder="Para antes de dormir…"/>
       </div>
       <div class="form-group">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-          <label class="form-label" style="margin:0">Ejercicios</label>
-          <button class="btn-ghost-small" onclick="openExPicker()">+ Agregar</button>
+        <p class="form-label">Tipo</p>
+        <div class="seg" id="routine-kind"></div>
+        <p class="form-hint">Fuerza y estiramientos del día se juntan en la sesión de noche; los bloques van aparte.</p>
+      </div>
+      <div class="form-group">
+        <p class="form-label">Días</p>
+        <div class="day-row" id="routine-days"></div>
+        <p class="form-hint" id="routine-days-hint"></p>
+      </div>
+      <div class="form-group">
+        <div class="form-label-row">
+          <p class="form-label">Ejercicios</p>
+          <button class="btn-link" onclick="openExPicker()">+ Agregar</button>
         </div>
         <div id="routine-ex-list"></div>
       </div>
-      <button class="btn-primary full-btn" onclick="saveRoutine()" style="margin-top:8px">Guardar rutina</button>
-      <div style="height:24px"></div>
+      <button class="btn-primary" onclick="saveRoutine()">Guardar rutina</button>
+      <button class="btn-danger" id="routine-delete-btn" onclick="deleteRoutine()">Eliminar rutina</button>
+      <div class="scroll-end sm"></div>
     </div>
   </div>
 </div>
 
-<!-- ══ MODAL: PICKER EJERCICIOS ══ -->
+<!-- ══ MODAL: SELECTOR DE EJERCICIOS ══ -->
 <div id="modal-picker" class="modal-overlay hidden">
-  <div class="form-sheet">
+  <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-header">
       <h2 class="sheet-title">Agregar ejercicios</h2>
-      <button class="close-btn" onclick="closePicker()">
+      <button class="close-btn" onclick="closePicker()" aria-label="Cerrar">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
-    <div class="form-scroll">
-      <input type="text" class="form-input" id="picker-search" placeholder="Buscar ejercicio…" oninput="renderPicker()" style="margin-bottom:12px"/>
+    <div class="sheet-scroll">
+      <input type="search" class="form-input search-input" id="picker-search" placeholder="Buscar ejercicio…" oninput="renderPicker()"/>
       <div id="picker-list"></div>
-      <button class="btn-primary full-btn" onclick="confirmPicker()" style="margin-top:12px">Confirmar</button>
-      <div style="height:24px"></div>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn-primary" onclick="confirmPicker()">Confirmar</button>
     </div>
   </div>
 </div>
 
-<!-- ══ MODAL: CREAR/EDITAR EJERCICIO ══ -->
+<!-- ══ MODAL: EJERCICIO ══ -->
 <div id="modal-exercise" class="modal-overlay hidden">
-  <div class="form-sheet" id="exercise-sheet">
+  <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-header">
       <h2 class="sheet-title" id="exercise-form-title">Nuevo ejercicio</h2>
-      <button class="close-btn" onclick="closeExerciseForm()">
+      <button class="close-btn" onclick="closeExerciseForm()" aria-label="Cerrar">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
-    <div class="form-scroll">
+    <div class="sheet-scroll">
       <div class="form-group">
-        <label class="form-label">Nombre del ejercicio</label>
+        <label class="form-label" for="ex-name">Nombre del ejercicio</label>
         <input type="text" id="ex-name" class="form-input" placeholder="Ej: Rotación de cadera"/>
       </div>
       <div class="form-group">
-        <label class="form-label">Zona del cuerpo</label>
-        <div class="body-zones" id="body-zones"></div>
+        <p class="form-label">Zona del cuerpo</p>
+        <div class="chip-wrap" id="body-zones"></div>
       </div>
       <div class="form-group">
-        <label class="form-label">Tipo</label>
-        <div class="type-toggle">
-          <button class="type-btn active" id="type-btn-time" onclick="selectType('time')">⏱ Tiempo</button>
-          <button class="type-btn" id="type-btn-reps" onclick="selectType('reps')">🔁 Repeticiones</button>
+        <p class="form-label">Posición <span class="optional">agrupa la sesión</span></p>
+        <div class="chip-wrap" id="ex-positions"></div>
+      </div>
+      <div class="form-group">
+        <p class="form-label">Tipo</p>
+        <div class="seg">
+          <button class="seg-btn active" id="type-btn-time" onclick="selectType('time')">Sostenimiento</button>
+          <button class="seg-btn" id="type-btn-reps" onclick="selectType('reps')">Repeticiones</button>
         </div>
       </div>
       <div id="type-time-fields" class="form-group">
-        <label class="form-label">Duración (segundos)</label>
-        <input type="number" id="ex-duration" class="form-input" placeholder="30" min="5" max="600"/>
-        <label class="form-label" style="margin-top:12px">Series</label>
-        <input type="number" id="ex-sets-time" class="form-input" placeholder="2" min="1" max="20"/>
+        <div class="field-grid">
+          <label><span class="form-label">Segundos</span><input type="number" id="ex-duration" class="form-input" placeholder="10" min="3" max="600"/></label>
+          <label><span class="form-label">Repeticiones</span><input type="number" id="ex-holds" class="form-input" placeholder="3" min="1" max="50"/></label>
+          <label><span class="form-label">Series</span><input type="number" id="ex-sets-time" class="form-input" placeholder="1" min="1" max="20"/></label>
+        </div>
       </div>
       <div id="type-reps-fields" class="form-group hidden">
-        <label class="form-label">Repeticiones</label>
-        <input type="number" id="ex-reps" class="form-input" placeholder="10" min="1" max="200"/>
-        <label class="form-label" style="margin-top:12px">Series</label>
-        <input type="number" id="ex-sets-reps" class="form-input" placeholder="2" min="1" max="20"/>
+        <div class="field-grid">
+          <label><span class="form-label">Repeticiones</span><input type="number" id="ex-reps" class="form-input" placeholder="8" min="1" max="200"/></label>
+          <label><span class="form-label">Series</span><input type="number" id="ex-sets-reps" class="form-input" placeholder="2" min="1" max="20"/></label>
+        </div>
+        <div class="field-grid" style="margin-top:12px">
+          <label><span class="form-label">Cadencia <span class="optional">s/rep</span></span><input type="number" id="ex-tempo" class="form-input" placeholder="General" min="1" max="10" step="0.5"/></label>
+          <label><span class="form-label">Sostén <span class="optional">s</span></span><input type="number" id="ex-hold" class="form-input" placeholder="0" min="0" max="30"/></label>
+        </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Lados y variantes</label>
-        <div class="type-toggle type-toggle-3">
-          <button class="type-btn active" id="var-btn-none"   onclick="selectVarMode('none')">Una posición</button>
-          <button class="type-btn"        id="var-btn-lr"     onclick="selectVarMode('lr')">Izq / Der</button>
-          <button class="type-btn"        id="var-btn-custom" onclick="selectVarMode('custom')">Otras</button>
+        <p class="form-label">Lados y variantes</p>
+        <div class="seg">
+          <button class="seg-btn active" id="var-btn-none"   onclick="selectVarMode('none')">Una posición</button>
+          <button class="seg-btn"        id="var-btn-lr"     onclick="selectVarMode('lr')">Izq / Der</button>
+          <button class="seg-btn"        id="var-btn-custom" onclick="selectVarMode('custom')">Otras</button>
         </div>
         <input type="text" id="ex-variants" class="form-input hidden" style="margin-top:10px"
                placeholder="Rodilla derecha, Rodilla izquierda, Centro"/>
-        <div id="var-order-wrap" class="hidden" style="margin-top:12px">
-          <label class="form-label">Orden</label>
-          <div class="type-toggle">
-            <button class="type-btn active" id="varord-btn-block" onclick="selectVarOrder('block')">Un lado completo</button>
-            <button class="type-btn"        id="varord-btn-cycle" onclick="selectVarOrder('cycle')">Alternar</button>
+        <div id="var-order-wrap" class="hidden" style="margin-top:14px">
+          <p class="form-label">Orden</p>
+          <div class="seg">
+            <button class="seg-btn active" id="varord-btn-block"  onclick="selectVarOrder('block')">Un lado completo</button>
+            <button class="seg-btn"        id="varord-btn-cycle"  onclick="selectVarOrder('cycle')">Alternar</button>
+            <button class="seg-btn"        id="varord-btn-series" onclick="selectVarOrder('series')">Una por serie</button>
           </div>
-          <p class="form-hint">«Un lado completo» hace las 3 repeticiones de un lado antes de cambiar: menos cambios de postura.</p>
+          <p class="form-hint">«Alternar» cambia de lado en cada serie: el otro lado descansa mientras trabajas.</p>
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Notas <span class="optional">opcional</span></label>
-        <textarea id="ex-notes" class="form-input form-textarea" placeholder="Cómo realizarlo, tips…"></textarea>
+        <label class="form-label" for="ex-setup">Preparación <span class="optional">opcional</span></label>
+        <input type="text" id="ex-setup" class="form-input" placeholder="Ej: Liga anclada a la altura del codo"/>
       </div>
       <div class="form-group">
-        <label class="form-label">Imagen de referencia <span class="optional">opcional</span></label>
-        <div class="img-upload-area" id="img-upload-area" onclick="triggerImgUpload()">
-          <div id="img-preview-wrap">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-            <p style="font-size:12px;color:var(--text-3);margin-top:6px">Toca para agregar foto</p>
-          </div>
+        <label class="form-label" for="ex-notes">Indicación <span class="optional">opcional</span></label>
+        <textarea id="ex-notes" class="form-input form-textarea" placeholder="Cómo realizarlo…"></textarea>
+      </div>
+      <div class="form-group">
+        <p class="form-label">Foto propia <span class="optional">reemplaza la figura</span></p>
+        <div class="img-upload-area" onclick="triggerImgUpload()">
+          <div id="img-preview-wrap"></div>
         </div>
         <input type="file" id="img-input" accept="image/*" style="display:none" onchange="handleImgUpload(event)"/>
-        <button class="btn-ghost-small" id="img-remove-btn" style="display:none;margin-top:8px;color:#ef4444" onclick="removeImg()">Eliminar imagen</button>
+        <button class="btn-link danger" id="img-remove-btn" style="display:none" onclick="removeImg()">Quitar foto</button>
       </div>
-      <button class="btn-primary full-btn" onclick="saveExercise()">Guardar ejercicio</button>
-      <button class="btn-ghost-danger" id="ex-delete-btn" style="display:none" onclick="deleteExercise()">Eliminar ejercicio</button>
-      <div style="height:24px"></div>
+      <button class="btn-primary" onclick="saveExercise()">Guardar ejercicio</button>
+      <button class="btn-danger" id="ex-delete-btn" style="display:none" onclick="deleteExercise()">Eliminar ejercicio</button>
+      <div class="scroll-end sm"></div>
     </div>
   </div>
 </div>
 
-<!-- ══ MODAL: DETALLE EJERCICIO (desde run) ══ -->
+<!-- ══ MODAL: DETALLE DE EJERCICIO ══ -->
 <div id="modal-ex-detail" class="modal-overlay hidden" onclick="closeExDetail(event)">
-  <div class="form-sheet">
+  <div class="sheet">
     <div class="sheet-handle"></div>
-    <div id="ex-detail-content"></div>
-    <div style="height:24px"></div>
+    <div class="sheet-scroll flush" id="ex-detail-content"></div>
   </div>
 </div>
 
-<!-- TOAST -->
 <div id="toast" class="toast hidden"></div>
-
-<!-- CONFETTI CANVAS -->
 <canvas id="confetti-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:999;display:none"></canvas>
 
 <script src="data.js"></script>

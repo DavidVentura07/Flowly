@@ -202,13 +202,14 @@
         <p class="pl-routine" id="pl-routine"></p>
         <p class="pl-block"><span class="pl-dot"></span><span id="pl-block"></span></p>
       </div>
-      <div class="pl-top-spacer"></div>
+      <button class="close-btn pl-info-btn" id="pl-info-btn" onclick="plInfoOpen()" aria-label="Cómo se hace">i</button>
     </div>
 
     <div class="pl-segments" id="pl-segments"></div>
 
     <div class="pl-scroll" id="pl-stage">
-      <div class="pl-core">
+      <div class="pl-core" id="pl-core">
+        <button class="pl-thumb hidden" id="pl-thumb" onclick="plZoomOpen()" aria-label="Ver la figura en grande"></button>
         <p class="pl-phase" id="pl-phase"></p>
         <div class="pl-ring">
           <svg viewBox="0 0 200 200" aria-hidden="true">
@@ -262,6 +263,33 @@
         <span id="pl-remain">−0:00</span>
       </div>
     </div>
+
+    <!-- Cómo se hace: encima del reproductor, sin detener el cronómetro -->
+    <div class="pl-layer pl-info hidden" id="pl-info" onclick="if (event.target === this) plInfoClose()">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <p class="eyebrow" id="pl-info-label">Cómo se hace</p>
+          <button class="close-btn" onclick="plInfoClose()" aria-label="Cerrar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="sheet-scroll" id="pl-info-body"></div>
+        <div class="sheet-footer"><button class="btn-primary" onclick="plInfoClose()">Entendido</button></div>
+      </div>
+    </div>
+
+    <!-- Figura en grande: cualquier toque regresa -->
+    <div class="pl-layer fig-zoom hidden" id="pl-zoom" onclick="plZoomClose()">
+      <div class="fig-zoom-top">
+        <p class="fig-zoom-name" id="pl-zoom-name"></p>
+        <button class="close-btn" aria-label="Cerrar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="fig-zoom-img" id="pl-zoom-img"></div>
+      <p class="fig-zoom-hint">Toca en cualquier parte para volver</p>
+    </div>
   </div>
 </div>
 
@@ -270,12 +298,30 @@
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-header">
-      <h2 class="sheet-title" id="routine-form-title">Nueva rutina</h2>
+      <div>
+        <h2 class="sheet-title" id="routine-form-title">Nueva rutina</h2>
+        <div class="sheet-tag" id="routine-rx-tag"></div>
+      </div>
       <button class="close-btn" onclick="closeRoutineForm()" aria-label="Cerrar">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
     <div class="sheet-scroll">
+      <div class="rx-note hidden" id="routine-rx-note">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9.5 17h-19z"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>
+        <div>
+          <p class="rx-note-title">Rutina prescrita por tu médico</p>
+          <p class="rx-note-text">Los cambios modifican el plan original. Si quieres una variante sin tocarla, haz una copia.</p>
+          <button class="btn-link" onclick="saveAsCopy()">Clonar en lugar de editar</button>
+        </div>
+      </div>
+      <div class="active-row">
+        <div class="cfg-text">
+          <p class="cfg-label">Activa</p>
+          <p class="cfg-hint">Aparece en Hoy los días marcados</p>
+        </div>
+        <button class="switch" id="routine-active" onclick="toggleEditActive()" role="switch" aria-label="Activa"><span></span></button>
+      </div>
       <div class="form-group">
         <label class="form-label" for="routine-name">Nombre</label>
         <input type="text" id="routine-name" class="form-input" placeholder="Ej: Estiramiento nocturno"/>
@@ -302,9 +348,31 @@
         <div id="routine-ex-list"></div>
       </div>
       <button class="btn-primary" onclick="saveRoutine()">Guardar rutina</button>
+      <button class="btn-secondary btn-icon hidden" id="routine-clone-btn" onclick="saveAsCopy()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>
+        Clonar rutina
+      </button>
+      <button class="btn-restore hidden" id="routine-restore-btn" onclick="restoreRoutine()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 7 3 12 8 12"/><path d="M3.5 12A8.5 8.5 0 1 0 6 6"/></svg>
+        Restaurar como la indicó el médico
+      </button>
       <button class="btn-danger" id="routine-delete-btn" onclick="deleteRoutine()">Eliminar rutina</button>
       <div class="scroll-end sm"></div>
     </div>
+  </div>
+</div>
+
+<!-- ══ DIÁLOGO: MODIFICAR UNA PRESCRITA ══ -->
+<div id="modal-rx-confirm" class="dialog-overlay hidden" onclick="if (event.target === this) closeRxConfirm()">
+  <div class="dialog" role="alertdialog" aria-labelledby="rx-confirm-title" aria-describedby="rx-confirm-text">
+    <div class="dialog-icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9.5 17h-19z"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>
+    </div>
+    <p class="dialog-title" id="rx-confirm-title">¿Modificar una rutina prescrita?</p>
+    <p class="dialog-text" id="rx-confirm-text"></p>
+    <button class="btn-primary" onclick="commitRoutine()">Guardar cambios</button>
+    <button class="btn-secondary" onclick="saveAsCopy()">Mejor guardar como copia</button>
+    <button class="btn-link muted" onclick="closeRxConfirm()">Cancelar</button>
   </div>
 </div>
 

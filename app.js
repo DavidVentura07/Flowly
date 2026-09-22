@@ -59,6 +59,7 @@ let S = {
   editRoutineId: null,
   editRoutineKind: 'libre',
   editRoutineDays: [],
+  editRoutineActive: true,
   editExId:      null,
   draftItems:    [],
   pickerSel:     [],
@@ -202,6 +203,36 @@ function exIllustration(ex) {
   if (ex.fig) return { kind:'sheet', src: exImageSrc(ex.fig) };
   return null;
 }
+
+// Miniatura para las listas del editor y del selector.
+function listThumb(ex) {
+  const ill = exIllustration(ex);
+  return ill
+    ? `<div class="list-thumb ${ill.kind === 'img' ? 'photo' : ''}"><img src="${ill.src}" alt="" loading="lazy"/></div>`
+    : `<div class="list-thumb emoji">${getEmoji(ex.zone)}</div>`;
+}
+
+// ══════════════════════════════════
+// RUTINAS PRESCRITAS
+// Las que vienen del plan del médico. Se pueden editar (con aviso), clonar
+// y restaurar. Cualquier rutina se puede apagar: las inactivas no salen en Hoy.
+// ══════════════════════════════════
+function seedOf(r) { return SEED_ROUTINES.find(s => s.id === r.id); }
+function isRx(r)   { return !!seedOf(r); }
+function isActive(r) { return r.active !== false; }
+
+// Lo que define el plan; activar o desactivar no cuenta como cambio.
+function planKey(r) {
+  return JSON.stringify({
+    name: r.name, desc: r.desc || '', kind: r.kind || 'libre',
+    days: [...(r.days || [])].sort((a, b) => a - b), items: r.items,
+  });
+}
+
+function rxTag(r) {
+  return `<span class="tag-rx ${r.edited ? 'mod' : ''}">${ICON.seal} Prescrita${r.edited ? ' · modificada' : ''}</span>`;
+}
+function copyTag(r) { return r.copyOf ? '<span class="tag-copy">Copia</span>' : ''; }
 
 // ══════════════════════════════════
 // PRESCRIPCIÓN
@@ -356,6 +387,8 @@ const ICON = {
   flame: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3.5-1.5 5.3-2.6 7.2C8.2 11.3 8 13 9 14.5c-2-.3-3-2-3-3.8C4.2 12.3 3.5 14.3 3.5 16c0 3.9 3.8 6 8.5 6s8.5-2.4 8.5-6.6c0-4.8-4-6.4-4.9-10.4-1 1.8-1.4 3.2-1.2 4.6C12.8 8.3 13.8 5.2 12 2z"/></svg>',
   moon:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>',
   timer: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 14.5 14.5"/><line x1="10" y1="2.5" x2="14" y2="2.5"/></svg>',
+  seal:  '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5l2.6 1.9 3.2-.1 1 3 2.6 1.9-1 3 1 3-2.6 1.9-1 3-3.2-.1L12 21.5l-2.6-1.9-3.2.1-1-3L2.6 14.8l1-3-1-3 2.6-1.9 1-3 3.2.1z"/><polyline points="8.5 12 11 14.5 15.5 9.5"/></svg>',
+  zoom:  '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>',
 };
 
 // ══════════════════════════════════
@@ -363,7 +396,7 @@ const ICON = {
 // ══════════════════════════════════
 function todayRoutines() {
   const dow = new Date().getDay();
-  return S.routines.filter(r => !r.days || !r.days.length || r.days.includes(dow));
+  return S.routines.filter(r => isActive(r) && (!r.days || !r.days.length || r.days.includes(dow)));
 }
 
 // La sesión de noche: la fuerza del día y los estiramientos, en una sola
@@ -492,7 +525,7 @@ function renderHoyBlocks() {
           <li class="part-row ${r === next ? 'is-next' : ''}">
             <button class="check-dot ${isDone(r.id) ? 'on' : ''}" onclick="toggleDone('${r.id}')" aria-label="Marcar como hecho">${ICON.check}</button>
             <div class="part-info">
-              <p class="part-name">${esc(r.name.split(' · ')[0])} <span class="part-dur">~${fmtDuration(s.total)}</span></p>
+              <p class="part-name">${esc(r.name.split(' · ')[0])} <span class="part-dur">~${fmtDuration(s.total)}</span> ${copyTag(r)}</p>
               <p class="part-meta clamp">${esc(names)}</p>
             </div>
             <button class="icon-btn" onclick="plOpen('${r.id}')" aria-label="Iniciar ${esc(r.name)}">${ICON.play}</button>
@@ -508,7 +541,7 @@ function renderHoyBlocks() {
 function renderHoyOthers() {
   const el = $('hoy-others');
   const shown = new Set([...nightSession(), ...todayBlocks()].map(r => r.id));
-  const others = S.routines.filter(r => !shown.has(r.id) && r.kind !== 'bloque');
+  const others = S.routines.filter(r => isActive(r) && !shown.has(r.id) && r.kind !== 'bloque');
   if (!others.length) { el.innerHTML = ''; return; }
   el.innerHTML = `
     <h2 class="section-label">Otras rutinas</h2>
@@ -667,17 +700,30 @@ function renderRoutineList() {
     return `
       <h2 class="section-label">${kind === 'bloque' ? 'Bloques de 10 min' : kind === 'libre' ? 'Rutinas propias' : KIND_LABEL[kind]}</h2>
       <div class="card list-card">
-        ${list.map(r => `
-          <div class="list-row">
+        ${list.map(r => {
+          const on = isActive(r);
+          return `
+          <div class="list-row ${on ? '' : 'off'}">
             <div class="part-info" onclick="openEditRoutine('${r.id}')">
-              <p class="part-name">${esc(r.name)}</p>
-              <p class="part-meta">${r.items.length} ejercicio${r.items.length !== 1 ? 's' : ''} · ${fmtDays(r.days)}</p>
+              <p class="part-name name-line">${esc(r.name)} ${copyTag(r)}</p>
+              <p class="part-meta name-line">${isRx(r) ? rxTag(r) : ''}<span>${r.items.length} ejercicio${r.items.length !== 1 ? 's' : ''} · ${fmtDays(r.days)}${on ? '' : ' · <b>Inactiva</b>'}</span></p>
             </div>
+            <button class="switch sm ${on ? 'on' : ''}" onclick="toggleActive('${r.id}')" role="switch" aria-checked="${on}" aria-label="Activa: ${esc(r.name)}"><span></span></button>
             <button class="icon-btn" onclick="plOpen('${r.id}')" aria-label="Iniciar">${ICON.play}</button>
-            <button class="icon-btn" onclick="openEditRoutine('${r.id}')" aria-label="Editar">${ICON.chevron}</button>
-          </div>`).join('')}
+          </div>`;
+        }).join('')}
       </div>`;
   }).join('');
+}
+
+function toggleActive(id) {
+  const r = S.routines.find(x => x.id === id);
+  if (!r) return;
+  r.active = !isActive(r);
+  persist();
+  renderLibrary();
+  renderHoy();
+  showToast(r.active ? 'Activa: aparece en Hoy' : 'Inactiva: ya no aparece en Hoy');
 }
 
 function exCategory(ex) {
@@ -732,12 +778,14 @@ function openCreateRoutine() {
   S.editRoutineId   = null;
   S.editRoutineKind = 'libre';
   S.editRoutineDays = [];
+  S.editRoutineActive = true;
   S.draftItems      = [];
   $('routine-name').value = '';
   $('routine-desc').value = '';
   $('routine-form-title').textContent = 'Nueva rutina';
   $('routine-delete-btn').style.display = 'none';
   renderRoutineMeta();
+  renderRoutineRx();
   renderDraftList();
   $('modal-routine').classList.remove('hidden');
 }
@@ -748,12 +796,14 @@ function openEditRoutine(id) {
   S.editRoutineId   = id;
   S.editRoutineKind = r.kind || 'libre';
   S.editRoutineDays = [...(r.days || [])];
+  S.editRoutineActive = isActive(r);
   S.draftItems      = JSON.parse(JSON.stringify(r.items));
   $('routine-name').value = r.name;
   $('routine-desc').value = r.desc || '';
   $('routine-form-title').textContent = 'Editar rutina';
   $('routine-delete-btn').style.display = 'block';
   renderRoutineMeta();
+  renderRoutineRx();
   renderDraftList();
   $('modal-routine').classList.remove('hidden');
 }
@@ -769,6 +819,21 @@ function renderRoutineMeta() {
   $('routine-days-hint').textContent = S.editRoutineDays.length
     ? `Aparece en Hoy: ${WEEK_ORDER.filter(d => S.editRoutineDays.includes(d)).map(d => DAY_LONG[d]).join(', ')}.`
     : 'Sin días marcados: aparece todos los días.';
+  const sw = $('routine-active');
+  sw.classList.toggle('on', S.editRoutineActive);
+  sw.setAttribute('aria-checked', S.editRoutineActive);
+}
+
+function toggleEditActive() { S.editRoutineActive = !S.editRoutineActive; renderRoutineMeta(); }
+
+// Etiqueta, aviso y botones que dependen de si la rutina es del médico.
+function renderRoutineRx() {
+  const r  = S.editRoutineId && S.routines.find(x => x.id === S.editRoutineId);
+  const rx = !!r && isRx(r);
+  $('routine-rx-tag').innerHTML = rx ? rxTag(r) : '';
+  $('routine-rx-note').classList.toggle('hidden', !rx);
+  $('routine-clone-btn').classList.toggle('hidden', !r);
+  $('routine-restore-btn').classList.toggle('hidden', !(rx && r.edited));
 }
 
 function setRoutineKind(k) { S.editRoutineKind = k; renderRoutineMeta(); }
@@ -794,6 +859,7 @@ function renderDraftList() {
         <div class="drag-handle">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="18" x2="16" y2="18"/></svg>
         </div>
+        ${listThumb(ex)}
         <div class="drag-info">
           <p class="drag-name">${esc(ex.name)}</p>
           <p class="drag-param">${fmtParams(item, ex)}${item.prog ? ' · progresión' : ''}</p>
@@ -819,23 +885,89 @@ function removeDraftItem(i) {
   renderDraftList();
 }
 
-function saveRoutine() {
+// Lo que hay en el formulario; null si le falta algo.
+function routineDraft() {
   const name = $('routine-name').value.trim();
-  const desc = $('routine-desc').value.trim();
-  if (!name) { showToast('Ponle un nombre a la rutina'); return; }
-  if (S.draftItems.length === 0) { showToast('Agrega al menos un ejercicio'); return; }
-  const data = { name, desc, kind: S.editRoutineKind, days: S.editRoutineDays.length ? [...S.editRoutineDays] : null, items: S.draftItems };
+  if (!name) { showToast('Ponle un nombre a la rutina'); return null; }
+  if (S.draftItems.length === 0) { showToast('Agrega al menos un ejercicio'); return null; }
+  return {
+    name, desc: $('routine-desc').value.trim(), kind: S.editRoutineKind,
+    days: S.editRoutineDays.length ? [...S.editRoutineDays] : null,
+    items: JSON.parse(JSON.stringify(S.draftItems)),
+    active: S.editRoutineActive,
+  };
+}
+
+function saveRoutine() {
+  const d = routineDraft();
+  if (!d) return;
+  // Cambiar el plan del médico pide confirmación; solo apagarla, no.
+  const r = S.editRoutineId && S.routines.find(x => x.id === S.editRoutineId);
+  if (r && isRx(r) && planKey(d) !== planKey(r)) {
+    $('rx-confirm-text').textContent =
+      `Vas a cambiar «${r.name}» tal como la indicó tu médico. Podrás restaurarla después desde este mismo editor.`;
+    $('modal-rx-confirm').classList.remove('hidden');
+    return;
+  }
+  commitRoutine(d);
+}
+
+function closeRxConfirm() { $('modal-rx-confirm').classList.add('hidden'); }
+
+function commitRoutine(d = routineDraft()) {
+  closeRxConfirm();
+  if (!d) return;
   if (S.editRoutineId) {
     const idx = S.routines.findIndex(r => r.id === S.editRoutineId);
-    if (idx !== -1) S.routines[idx] = { ...S.routines[idx], ...data };
+    if (idx !== -1) {
+      const r = { ...S.routines[idx], ...d };
+      // «modificada» = distinta de como la indicó el médico
+      if (isRx(r)) r.edited = planKey(r) !== planKey(seedOf(r));
+      S.routines[idx] = r;
+    }
   } else {
-    S.routines.push({ id: uid(), ...data });
+    S.routines.push({ id: uid(), ...d });
   }
   persist();
   renderLibrary();
   renderHoy();
   closeRoutineForm();
   showToast(S.editRoutineId ? 'Rutina actualizada' : 'Rutina creada');
+}
+
+// Copia editable con lo que hay en el formulario. La original se queda como
+// estaba guardada y se apaga, porque normalmente la copia la sustituye.
+function saveAsCopy() {
+  closeRxConfirm();
+  const d = routineDraft();
+  if (!d) return;
+  const idx = S.routines.findIndex(r => r.id === S.editRoutineId);
+  if (idx === -1) return;
+  const orig = S.routines[idx];
+  const copy = {
+    ...d, id: uid(), copyOf: orig.id, active: true,
+    name: d.name === orig.name ? `${d.name} (copia)` : d.name,
+  };
+  if (orig.sheet) copy.sheet = orig.sheet;
+  orig.active = false;
+  S.routines.splice(idx + 1, 0, copy);
+  persist();
+  renderLibrary();
+  renderHoy();
+  closeRoutineForm();
+  showToast('Copia creada · la original quedó inactiva');
+}
+
+function restoreRoutine() {
+  const r = S.routines.find(x => x.id === S.editRoutineId);
+  const seed = r && seedOf(r);
+  if (!seed || !confirm('¿Restaurar la rutina como la indicó el médico? Se pierden tus cambios.')) return;
+  Object.assign(r, JSON.parse(JSON.stringify(seed)), { active: isActive(r), edited: false });
+  persist();
+  renderLibrary();
+  renderHoy();
+  closeRoutineForm();
+  showToast('Rutina restaurada');
 }
 
 function deleteRoutine() {
@@ -890,6 +1022,7 @@ function renderPicker() {
     const on = S.pickerSel.includes(ex.id);
     return `
       <div class="picker-item ${on ? 'on' : ''}" onclick="togglePick('${ex.id}')">
+        ${listThumb(ex)}
         <div class="picker-info">
           <p class="picker-name">${esc(ex.name)}</p>
           <p class="picker-meta">${esc(ex.zone)} · ${fmtParams({}, ex)}</p>
@@ -1525,6 +1658,7 @@ function plOpen(ids) {
   $('pl-done').classList.add('hidden');
   $('pl-stage').classList.remove('hidden');
   $('pl-controls').classList.remove('hidden');
+  $('pl-info-btn').style.visibility = '';
 
   plRender();
   plAnnounce();
@@ -1532,6 +1666,8 @@ function plOpen(ids) {
 }
 
 function plClose() {
+  plInfoClose();
+  plZoomClose();
   plPause();
   releaseWakeLock();
   try { speechSynthesis.cancel(); } catch (e) {}
@@ -1720,6 +1856,16 @@ function plRender() {
   $('pl-notes').textContent = ex.notes || '';
   $('pl-note-card').classList.toggle('hidden', !ex.notes);
 
+  // Miniatura en la esquina: en el descanso, la del ejercicio que sigue.
+  $('pl-core').classList.toggle('has-thumb', !!ill);
+  $('pl-thumb').classList.toggle('hidden', !ill);
+  $('pl-thumb').innerHTML = !ill ? '' : `
+    ${resting ? '<span class="pl-thumb-lbl">Sigue</span>' : ''}
+    <img class="${ill.kind === 'img' ? 'photo' : ''}" src="${ill.src}" alt=""/>
+    <span class="pl-thumb-zoom">${ICON.zoom}</span>`;
+  if (!$('pl-info').classList.contains('hidden')) plInfoFill();
+  if (!$('pl-zoom').classList.contains('hidden')) plZoomFill();
+
   // Qué sigue: el próximo paso que cambie de ejercicio o de lado.
   const nx = resting ? null : p.steps.slice(p.i + 1).find(x =>
     isPerform(x) && (x.ex.id !== ex.id || x.variant !== t.variant));
@@ -1730,6 +1876,47 @@ function plRender() {
 
   plPaintTimer();
   plPaintControls();
+}
+
+// El ejercicio en pantalla: en los descansos, el que sigue.
+function plShownEx() {
+  const p = S.pl; if (!p || p.finished) return null;
+  const s = p.steps[p.i];
+  return { ex: (s.kind === 'rest' ? s.next : s).ex, resting: s.kind === 'rest' };
+}
+
+// Cómo se hace: encima del reproductor, sin detener el cronómetro.
+function plInfoOpen() {
+  if (!plShownEx()) return;
+  plInfoFill();
+  $('pl-info').classList.remove('hidden');
+}
+function plInfoClose() { $('pl-info').classList.add('hidden'); }
+function plInfoFill() {
+  const cur = plShownEx(); if (!cur) return plInfoClose();
+  const ex = cur.ex;
+  $('pl-info-label').textContent = cur.resting ? 'Sigue · cómo se hace' : 'Cómo se hace';
+  const chips = [ex.zone, ex.pos].filter(Boolean).map(c => `<span class="chip">${esc(c)}</span>`).join('');
+  $('pl-info-body').innerHTML = `
+    <p class="info-name">${esc(ex.name)}</p>
+    ${chips ? `<div class="chip-row">${chips}</div>` : ''}
+    ${ex.setup ? `<div class="setup-box"><p class="eyebrow">Preparación</p><p>${esc(ex.setup)}</p></div>` : ''}
+    <p class="info-notes">${ex.notes ? esc(ex.notes) : 'Este ejercicio no tiene indicación escrita.'}</p>
+    <div class="scroll-end sm"></div>`;
+}
+
+function plZoomOpen() {
+  if (!plShownEx()) return;
+  plZoomFill();
+  $('pl-zoom').classList.remove('hidden');
+}
+function plZoomClose() { $('pl-zoom').classList.add('hidden'); }
+function plZoomFill() {
+  const cur = plShownEx();
+  const ill = cur && exIllustration(cur.ex);
+  if (!ill) return plZoomClose();
+  $('pl-zoom-name').textContent = cur.ex.name;
+  $('pl-zoom-img').innerHTML = `<img class="${ill.kind === 'img' ? 'photo' : ''}" src="${ill.src}" alt="${esc(cur.ex.name)}"/>`;
 }
 
 // Alarga el paso actual (útil en los descansos, cuando la postura cuesta).
@@ -1806,8 +1993,11 @@ function plFinish() {
   const streak = calcStreak();
   const n = p.performTotal;
 
+  plInfoClose();
+  plZoomClose();
   $('pl-stage').classList.add('hidden');
   $('pl-controls').classList.add('hidden');
+  $('pl-info-btn').style.visibility = 'hidden';
   $('pl-routine').textContent = p.title;
   $('pl-block').textContent = 'Completado';
   const done = $('pl-done');
@@ -1956,16 +2146,25 @@ function seedRoutine() {
   SEED_ROUTINES.forEach(seed => {
     const copy = JSON.parse(JSON.stringify(seed));
     const i = S.routines.findIndex(r => r.id === seed.id);
+    const cur = S.routines[i];
     if (i === -1) S.routines.push(copy);
-    else S.routines[i] = { ...copy, days: S.routines[i].days !== undefined ? S.routines[i].days : copy.days };
+    // las que editaste se quedan como están: solo «Restaurar» las devuelve al plan
+    else if (!cur.edited) S.routines[i] = {
+      ...copy, days: cur.days !== undefined ? cur.days : copy.days,
+      ...(cur.active === false ? { active: false } : {}),
+    };
   });
 
-  // las sembradas primero, en el orden del plan; después las propias
+  // las sembradas primero, en el orden del plan, cada una seguida de sus
+  // copias; después las propias (el sort es estable)
   const order = SEED_ROUTINES.map(r => r.id);
-  S.routines.sort((a, b) => {
-    const ia = order.indexOf(a.id), ib = order.indexOf(b.id);
-    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
-  });
+  const rank = r => {
+    const i = order.indexOf(r.id);
+    if (i !== -1) return i;
+    const j = order.indexOf(r.copyOf);
+    return j !== -1 ? j + .5 : 999;
+  };
+  S.routines.sort((a, b) => rank(a) - rank(b));
 
   if (!S.cfg.progStart) S.cfg.progStart = todayStr();
 

@@ -12,12 +12,14 @@ let S = {
   routines:     [],   // { id, name, desc, kind, days, sheet, items: [{exId, sets, reps, duration, prog, band, variantOrder}] }
   activeDays:   [],   // ['2026-09-15', ...] días con al menos una rutina hecha
   doneLog:      {},   // { '2026-09-15': [routineId, ...] }
+  ownSeeded:    [],   // ids de OWN_EXERCISES que ya se agregaron una vez
   accentIndex:  0,
 
   // Ajustes (persistidos)
   cfg: {
     // generales del reproductor
     sound:       true,
+    metronome:   true,  // tonos de ida y vuelta en los ejercicios en movimiento
     voice:       true,
     vibrate:     true,
     autoAdvance: true,
@@ -84,6 +86,7 @@ function persist() {
       routines:    S.routines,
       activeDays:  S.activeDays,
       doneLog:     S.doneLog,
+      ownSeeded:   S.ownSeeded,
       accentIndex: S.accentIndex,
       cfg:         S.cfg,
       cfgVersion:  CFG_VERSION,
@@ -100,6 +103,7 @@ function hydrate() {
     S.routines    = d.routines    || [];
     S.activeDays  = d.activeDays  || [];
     S.doneLog     = d.doneLog     || {};
+    S.ownSeeded   = d.ownSeeded   || [];
     // rutinas sembradas antes de que existiera el tipo
     S.routines.forEach(r => {
       const seed = SEED_ROUTINES.find(s => s.id === r.id);
@@ -117,6 +121,18 @@ function hydrate() {
       S.cfg = { ...S.cfg, ...d.cfg };
     }
   } catch (e) { console.warn('hydrate error', e); }
+}
+
+// Los ejercicios propios entran solos, una sola vez y sin rutina. Lo que ya
+// se agregó no se vuelve a tocar: si se edita o se borra, así se queda.
+function seedOwnExercises() {
+  let added = 0;
+  OWN_EXERCISES.forEach(ex => {
+    if (S.ownSeeded.includes(ex.id)) return;
+    if (!exById(ex.id)) { S.exercises.push(JSON.parse(JSON.stringify(ex))); added++; }
+    S.ownSeeded.push(ex.id);
+  });
+  return added;
 }
 
 function pruneDoneLog() {
@@ -188,6 +204,9 @@ function fmtSecs(v) {
 }
 
 function exById(id) { return S.exercises.find(e => e.id === id); }
+
+// Movimiento continuo guiado por metrónomo (ver data.js).
+function hasRhythm(ex) { return !!(ex && ex.type === 'time' && ex.rhythm && ex.rhythm.cycle > 0); }
 
 // Variantes efectivas de un ejercicio (null si es una sola posición).
 function exVariants(ex, applyOneSide) {
@@ -285,6 +304,7 @@ function fmtParams(item, ex) {
   if (v) parts.push(v.length === 2 && v[0] === 'Izquierdo' ? 'por lado' : `${v.length} variantes`);
   else if (r.alt) parts.push('alternando');
   if (r.hold) parts.push(`sostén ${r.hold} s`);
+  if (hasRhythm(ex)) parts.push(`ritmo ${ex.rhythm.cycle} s`);
   return parts.join(' · ');
 }
 
@@ -332,8 +352,42 @@ function toggleDone(id) {
 }
 
 // ── INIT ──
+// ══════════════════════════════════
+// SIEMPRE VERTICAL
+// Android respeta «orientation: portrait» del manifest (y lock()). iOS no:
+// ahí, cuando el teléfono se acuesta, la app se contragira 90° por CSS para
+// seguir vertical respecto al teléfono (ver style.css).
+// ══════════════════════════════════
+function fixPortrait() {
+  const w = window.innerWidth, h = window.innerHeight;
+  const phone = Math.min(w, h) < 560 && matchMedia('(pointer: coarse)').matches;
+  const root = document.documentElement;
+  if (!root) return;
+  root.classList.remove('rot-l', 'rot-r');
+  if (!phone || w <= h) return;
+  // 90: el teléfono giró a la izquierda (su parte de arriba quedó a la izquierda)
+  let a = typeof window.orientation === 'number' ? window.orientation
+        : screen.orientation ? screen.orientation.angle : 90;
+  a = ((a % 360) + 360) % 360;
+  root.style.setProperty('--sw', w + 'px');
+  root.style.setProperty('--sh', h + 'px');
+  root.classList.add(a === 270 ? 'rot-r' : 'rot-l');
+}
+function refixPortrait() {
+  fixPortrait();
+  setTimeout(fixPortrait, 300);   // iOS a veces da las medidas nuevas un poco después
+}
+fixPortrait();
+['resize', 'orientationchange'].forEach(ev => window.addEventListener(ev, refixPortrait));
+// por si algún evento no llega: al cambiar la orientación de la ventana y al
+// volver a la app después de girar el teléfono con ella en segundo plano
+try { matchMedia('(orientation: landscape)').addEventListener('change', refixPortrait); } catch (e) {}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refixPortrait(); });
+try { screen.orientation.lock('portrait').catch(() => {}); } catch (e) {}
+
 window.addEventListener('DOMContentLoaded', () => {
   hydrate();
+  if (seedOwnExercises()) persist();
   applyAccent(S.accentIndex);
 
   setTimeout(() => {
@@ -639,7 +693,9 @@ function openExDetail(e, exId, routineId, itemIdx) {
   const r = rx(item, ex);
   const ill  = exIllustration(ex);
   const vars = exVariants(ex);
-  const params = ex.type === 'time'
+  const params = hasRhythm(ex)
+    ? [[r.duration, vars ? 's por lado' : 's en movimiento'], [r.sets, 'series'], [ex.rhythm.cycle, 's ida y vuelta']]
+    : ex.type === 'time'
     ? [[r.duration, 's sostén'], [r.reps, 'repeticiones'], [r.sets, 'series']]
     : [[r.reps, r.alt ? 'reps alternando' : vars ? 'reps por lado' : 'repeticiones'], [r.sets, 'series'], [r.tempo, 's por rep']];
 
@@ -660,6 +716,8 @@ function openExDetail(e, exId, routineId, itemIdx) {
       </div>
       ${ex.setup ? `<div class="setup-box"><p class="eyebrow">Preparación</p><p>${esc(ex.setup)}</p></div>` : ''}
       ${r.hold ? `<p class="ex-detail-extra">Sostén ${r.hold} s en cada repetición.</p>` : ''}
+      ${hasRhythm(ex) ? `<p class="ex-detail-extra">Movimiento continuo con metrónomo: tono agudo al empezar la ida (${esc(ex.rhythm.ida || 'ida')}) y grave al empezar la vuelta (${esc(ex.rhythm.vuelta || 'vuelta')}).</p>` : ''}
+      ${ex.rest != null ? `<p class="ex-detail-extra">Descanso propio: ${ex.rest} s entre repeticiones, series y lados.</p>` : ''}
       ${ex.notes ? `<p class="ex-detail-notes">${esc(ex.notes)}</p>` : ''}
     </div>`;
   $('modal-ex-detail').classList.remove('hidden');
@@ -1063,7 +1121,7 @@ function openExerciseForm(id) {
 
   $('exercise-form-title').textContent = id ? 'Editar ejercicio' : 'Nuevo ejercicio';
   $('ex-delete-btn').style.display = id ? 'block' : 'none';
-  ['ex-name','ex-duration','ex-sets-time','ex-holds','ex-reps','ex-sets-reps','ex-tempo','ex-hold','ex-setup','ex-notes','ex-variants']
+  ['ex-name','ex-duration','ex-sets-time','ex-holds','ex-reps','ex-sets-reps','ex-tempo','ex-hold','ex-setup','ex-notes','ex-variants','ex-rhythm','ex-rest']
     .forEach(k => { $(k).value = ''; });
   selectType('time');
   resetImgPreview();
@@ -1096,13 +1154,31 @@ function openExerciseForm(id) {
       $('ex-hold').value      = ex.hold || '';
     }
     if (ex.img) { S.editExImg = ex.img; showImgPreview(ex.img); }
+    if (ex.type === 'time' && ex.rhythm && ex.rhythm.cycle) $('ex-rhythm').value = ex.rhythm.cycle;
+    if (ex.rest != null) $('ex-rest').value = ex.rest;
   }
+  paintRhythmRestore();
   renderZones();
   renderPositions();
   $('modal-exercise').classList.remove('hidden');
 }
 
 function closeExerciseForm() { $('modal-exercise').classList.add('hidden'); }
+
+// Ritmo sugerido de fábrica (solo los ejercicios propios que traen uno).
+function suggestedRhythm() {
+  const own = OWN_EXERCISES.find(e => e.id === S.editExId);
+  return own && own.rhythm ? own.rhythm : null;
+}
+function paintRhythmRestore() {
+  const r = suggestedRhythm();
+  $('ex-rhythm-restore').classList.toggle('hidden', !r);
+  if (r) $('ex-rhythm-restore').textContent = `Volver al ritmo sugerido (${fmtTempo(r.cycle)})`;
+}
+function restoreRhythm() {
+  const r = suggestedRhythm();
+  if (r) $('ex-rhythm').value = r.cycle;
+}
 
 function renderZones() {
   $('body-zones').innerHTML = ZONES.map(z =>
@@ -1157,6 +1233,18 @@ function saveExercise() {
   if (isTime && !dur)  { showToast('Ingresa la duración en segundos'); return; }
   if (!isTime && !reps){ showToast('Ingresa las repeticiones'); return; }
 
+  // ritmo guiado: movimiento continuo, nunca más de 2 min en total
+  const old = S.editExId ? exById(S.editExId) : null;
+  let cycle = isTime ? num('ex-rhythm') : null;
+  if (cycle) cycle = Math.min(TEMPO_MAX, Math.max(TEMPO_MIN, Math.round(cycle * 2) / 2));
+  if (cycle) {
+    const vars = readVariants();
+    const total = dur * (reps || 1) * sets * (vars ? vars.length : 1);
+    if (total > 120) { showToast(`Con ritmo guiado el total no pasa de 2 min (ahora ${fmtSecs(total)})`); return; }
+  }
+  const baseRhythm = (old && old.rhythm) || suggestedRhythm() || {};
+  const rest = num('ex-rest', parseInt);
+
   const exData = {
     name,
     zone:     S.editExZone,
@@ -1172,6 +1260,8 @@ function saveExercise() {
     img:      S.editExImg || null,
     variants:     readVariants(),
     variantOrder: S.editExVarOrder || 'block',
+    rhythm:   cycle ? { ...baseRhythm, cycle } : null,
+    rest:     rest != null && rest >= 0 ? rest : null,
   };
 
   if (S.editExId) {
@@ -1293,6 +1383,7 @@ function exportData() {
     routines:    S.routines,
     activeDays:  S.activeDays,
     doneLog:     S.doneLog,
+    ownSeeded:   S.ownSeeded,
     accentIndex: S.accentIndex,
     cfg:         S.cfg,
   };
@@ -1321,8 +1412,10 @@ function importData(e) {
       S.routines    = d.routines   || [];
       S.activeDays  = d.activeDays || [];
       S.doneLog     = d.doneLog    || {};
+      S.ownSeeded   = d.ownSeeded  || [];
       S.accentIndex = d.accentIndex ?? 0;
       if (d.cfg) S.cfg = { ...S.cfg, ...d.cfg };
+      seedOwnExercises();
       applyAccent(S.accentIndex);
       persist();
       renderHoy();
@@ -1341,8 +1434,8 @@ function importData(e) {
 function launchConfetti() {
   const canvas = $('confetti-canvas');
   canvas.style.display = 'block';
-  canvas.width  = window.innerWidth;
-  canvas.height = window.innerHeight;
+  canvas.width  = document.body.clientWidth;
+  canvas.height = document.body.clientHeight;
   const ctx = canvas.getContext('2d');
   const accent = (ACCENT_COLORS[S.accentIndex] || ACCENT_COLORS[0]).value;
   const colors = [accent, accent, '#A5D6A7', '#C9B79C', '#1B382B'];
@@ -1483,6 +1576,8 @@ function buildSteps(routines) {
     } else {
       secs = restFor(meta.kind, 'rep'); label = 'Descanso';
     }
+    // descanso propio del ejercicio, si lo tiene, dentro del mismo ejercicio
+    if (sameEx && ['variant', 'set', 'rep'].includes(gap) && step.ex.rest != null) secs = step.ex.rest;
     // el montaje se anuncia solo cuando cambia respecto al ejercicio anterior
     const setup = step.ex.setup && (!prev || (!sameEx && step.ex.setup !== prev.ex.setup)) ? step.ex.setup : null;
     if (secs > 0) steps.push({ kind: 'rest', seconds: secs, label, gap, next: step, setup });
@@ -1592,6 +1687,153 @@ function speak(text) {
   } catch (e) {}
 }
 
+// ══════════════════════════════════
+// METRÓNOMO
+// Ejercicios en movimiento: tono agudo al empezar la ida y grave al empezar
+// la vuelta. Los tonos se programan en el reloj de audio con un poco de
+// anticipación, así el ritmo no titubea aunque el tick de 100 ms se retrase.
+// ══════════════════════════════════
+const METRO_LEAD = .35;  // el primer tono espera a que pase el tono de cambio de paso
+const TEMPO_MIN = 2, TEMPO_MAX = 12;
+
+function isRhythmStep(s) { return !!(s && s.kind === 'hold' && hasRhythm(s.ex)); }
+
+function metroCtx() {
+  try {
+    _actx = _actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (_actx.state === 'suspended') _actx.resume();
+    return _actx;
+  } catch (e) { return null; }
+}
+
+function metroTone(m, hi, at) {
+  const ctx = _actx;
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  const ms = hi ? 110 : 150;
+  o.type = hi ? 'triangle' : 'sine';
+  o.frequency.value = hi ? 1175 : 523;
+  g.gain.setValueAtTime(.0001, at);
+  g.gain.exponentialRampToValueAtTime(hi ? .30 : .36, at + .005);
+  g.gain.exponentialRampToValueAtTime(.0001, at + ms / 1000);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(at); o.stop(at + ms / 1000 + .02);
+  m.nodes.push(o);
+  o.onended = () => { const k = m.nodes.indexOf(o); if (k !== -1) m.nodes.splice(k, 1); };
+}
+
+// Ancla el ritmo al paso actual. Al reanudar a media ida, el siguiente tono
+// llega a su hora; con `fromNow` (cambio de ritmo) arranca desde ya,
+// siguiendo la alternancia donde iba.
+function metroStart(fromNow) {
+  const p = S.pl; if (!p) return;
+  const s = p.steps[p.i];
+  const prev = p.metro;
+  metroStop();
+  if (!isRhythmStep(s) || !p.playing) return;
+  const ctx = S.cfg.metronome ? metroCtx() : null;
+  const m = { ctx: !!ctx, half: s.ex.rhythm.cycle / 2, nodes: [], flip: 0, t0: 0, k: 0 };
+  const now = metroNow(m);
+  if (fromNow && prev) {
+    m.t0 = now + .12;
+    m.flip = prev.lastHi ? 1 : 0;
+  } else {
+    m.t0 = now - (s.seconds - p.left) + METRO_LEAD;
+    m.k = Math.max(0, Math.ceil((now - m.t0) / m.half - 1e-6));
+  }
+  p.metro = m;
+  metroPump();
+  plBeatLoop();
+}
+
+function metroStop() {
+  const p = S.pl; if (!p || !p.metro) return;
+  p.metro.nodes.forEach(o => { try { o.stop(0); } catch (e) {} });
+  p.metro = null;
+}
+
+function metroNow(m) { return m.ctx ? _actx.currentTime : performance.now() / 1000; }
+
+function metroPump() {
+  const p = S.pl; if (!p || !p.metro || !p.playing) return;
+  const m = p.metro;
+  const now = metroNow(m), end = now + Math.max(0, p.left) - .1;
+  while (m.t0 + m.k * m.half < Math.min(now + .25, end)) {
+    const hi = (m.k + m.flip) % 2 === 0;
+    if (m.ctx) metroTone(m, hi, Math.max(now, m.t0 + m.k * m.half));
+    m.lastHi = hi;
+    m.k++;
+  }
+}
+
+// Ida o vuelta y cuánto va de esa mitad (0–1), para el punto que va y viene.
+function metroPhase() {
+  const p = S.pl; const m = p && p.metro;
+  if (!m) return null;
+  const e = metroNow(m) - m.t0;
+  if (e < 0) return { ida: m.flip === 0, f: 0 };
+  const k = Math.floor(e / m.half);
+  return { ida: (k + m.flip) % 2 === 0, f: (e % m.half) / m.half };
+}
+
+let _beatRaf = null;
+function plBeatLoop() {
+  cancelAnimationFrame(_beatRaf);
+  const tick = () => {
+    const p = S.pl;
+    if (!p || !p.metro || !isRhythmStep(p.steps[p.i])) return;
+    plPaintBeat();
+    _beatRaf = requestAnimationFrame(tick);
+  };
+  _beatRaf = requestAnimationFrame(tick);
+}
+
+function plPaintBeat() {
+  const p = S.pl; if (!p) return;
+  const s = p.steps[p.i];
+  if (!isRhythmStep(s)) return;
+  const ph = metroPhase();
+  const r = s.ex.rhythm;
+  if (!ph) {
+    $('pl-beat-dot').style.left = '0%';
+    $('pl-beat-word').textContent = p.playing ? 'Movimiento' : 'En pausa';
+    $('pl-beat-cue').textContent = 'A tu ritmo';
+    return;
+  }
+  const ease = (1 - Math.cos(Math.PI * ph.f)) / 2;
+  $('pl-beat-dot').style.left = ((ph.ida ? ease : 1 - ease) * 100) + '%';
+  $('pl-beat-word').textContent = ph.ida ? 'Ida' : 'Vuelta';
+  $('pl-beat-cue').textContent = (ph.ida ? r.ida : r.vuelta) || '';
+}
+
+// − / + durante el ejercicio: cambia al momento y se queda guardado en el
+// ejercicio para las siguientes sesiones.
+function plTempo(delta) {
+  const p = S.pl; if (!p) return;
+  const s = p.steps[p.i];
+  if (!isRhythmStep(s)) return;
+  const ex = s.ex;
+  const cycle = Math.min(TEMPO_MAX, Math.max(TEMPO_MIN, Math.round((ex.rhythm.cycle + delta) * 2) / 2));
+  if (cycle === ex.rhythm.cycle) return;
+  ex.rhythm = { ...ex.rhythm, cycle };
+  persist();
+  if (p.playing) metroStart(true);
+  plPaintTempo();
+  showToast(`Ritmo guardado: ${fmtTempo(cycle)} ida y vuelta`);
+}
+
+function fmtTempo(v) { return `${String(v).replace('.', ',')} s`; }
+
+function plPaintTempo() {
+  const p = S.pl; if (!p) return;
+  const s = p.steps[p.i];
+  const on = isRhythmStep(s);
+  $('pl-tempo').classList.toggle('hidden', !on);
+  $('pl-beat').classList.toggle('hidden', !on);
+  if (!on) return;
+  $('pl-tempo-val').textContent = fmtTempo(s.ex.rhythm.cycle);
+  plPaintBeat();
+}
+
 let _wakeLock = null;
 async function acquireWakeLock() {
   try {
@@ -1691,10 +1933,12 @@ function plPlay() {
   acquireWakeLock();
   plPaintControls();
   beep(660, 90, .12);   // el primer gesto desbloquea el audio en móvil
+  metroStart();
 }
 
 function plPause() {
   const p = S.pl; if (!p) return;
+  metroStop();
   p.playing = false;
   clearInterval(p.tickId);
   p.tickId = null;
@@ -1728,7 +1972,12 @@ function plTick() {
     return;
   }
 
-  if (s.kind === 'set') {
+  if (isRhythmStep(s)) {
+    // el metrónomo marca el paso; sin cuenta regresiva para no encimar tonos
+    if (p.metro) metroPump();
+    else metroStart();
+    plPaintBeat();   // respaldo por si el navegador frena requestAnimationFrame
+  } else if (s.kind === 'set') {
     // cadencia: una cuenta por repetición, y un tono suave al empezar el sostén
     const el  = s.seconds - p.left;
     const rep = Math.min(s.reps, Math.floor(el / s.perRep) + 1);
@@ -1758,6 +2007,7 @@ function plGo(idx) {
   const p = S.pl; if (!p) return;
   if (idx >= p.steps.length) return plFinish();
   if (idx < 0) idx = 0;
+  metroStop();
   p.i       = idx;
   p.left    = p.steps[idx].seconds;
   p.lastSec = null;
@@ -1767,6 +2017,7 @@ function plGo(idx) {
   p.endAt   = Date.now() + p.left * 1000;
   plRender();
   plAnnounce();
+  if (p.playing) metroStart();
 }
 
 function plNext() { const p = S.pl; if (p) plGo(p.i + 1); }
@@ -1789,7 +2040,8 @@ function plAnnounce() {
   if (s.kind === 'rest') {
     const n = s.next;
     if (['variant', 'rep', 'set'].includes(s.gap)) return speak(s.label);
-    return speak([s.label, n.ex.name, n.variant, s.setup ? `Prepara: ${s.setup}` : null].filter(Boolean).join('. '));
+    return speak([s.label, n.ex.name, n.variant, s.setup ? `Prepara: ${s.setup}` : null,
+      isRhythmStep(n) ? 'Movimiento continuo, sigue el ritmo' : null].filter(Boolean).join('. '));
   }
   const prevStep = p.steps[p.i - 1];
   if (!prevStep || prevStep.kind !== 'rest') {
@@ -1822,14 +2074,16 @@ function plRender() {
   let phase;
   if (resting) phase = s.gap === 'round' ? 'Descanso largo' : s.gap === 'start' ? 'Preparación' : 'Descanso';
   else if (s.kind === 'hold') {
-    phase = s.repTotal > 1 ? `Repetición ${s.rep} de ${s.repTotal}` : 'Sostén';
+    phase = isRhythmStep(s) ? 'Movimiento continuo'
+      : s.repTotal > 1 ? `Repetición ${s.rep} de ${s.repTotal}` : 'Sostén';
     if (s.setTotal > 1) phase += ` · ${s.setLabel} ${s.set} de ${s.setTotal}`;
   } else phase = `${s.setLabel} ${s.set} de ${s.setTotal}`;
   $('pl-phase').textContent = phase;
 
   // el bloque grande: lado, variante o qué hacer
   $('pl-side').textContent = resting ? s.label
-    : t.variant || (t.kind === 'set' ? (t.alt ? 'Alternando lados' : `${t.reps} repeticiones`) : 'Sostén');
+    : t.variant || (t.kind === 'set' ? (t.alt ? 'Alternando lados' : `${t.reps} repeticiones`)
+      : isRhythmStep(t) ? 'Movimiento' : 'Sostén');
 
   $('pl-name-label').textContent = resting ? 'Sigue' : 'Ejercicio actual';
   $('pl-name').textContent = ex.name;
@@ -1839,6 +2093,7 @@ function plRender() {
   if (ex.pos)  chips.push(`<span class="chip">${esc(ex.pos)}</span>`);
   if (t.band)  chips.push(`<span class="chip chip-accent">Liga ${t.band.toLowerCase()}</span>`);
   if (t.kind === 'set') chips.push(`<span class="chip">${t.reps} reps${t.hold ? ` · sostén ${t.hold} s` : ''} · ${t.tempo} s c/u</span>`);
+  if (isRhythmStep(t)) chips.push(`<span class="chip">Ritmo ${fmtTempo(ex.rhythm.cycle)} ida y vuelta</span>`);
   if (resting && t.variant) chips.push(`<span class="chip chip-live">${esc(t.variant)}</span>`);
   $('pl-chips').innerHTML = chips.join('');
 
@@ -1876,6 +2131,7 @@ function plRender() {
 
   plPaintTimer();
   plPaintControls();
+  plPaintTempo();
 }
 
 // El ejercicio en pantalla: en los descansos, el que sigue.
@@ -2057,6 +2313,7 @@ function renderPlayerSettings() {
       cfgChoiceCtl('sessionOrder', [['fuerza', 'Fuerza primero'], ['estiramientos', 'Estirar primero']])) +
     cfgRow('Avance automático', 'Pasa solo al terminar cada tiempo', cfgToggleCtl('autoAdvance')) +
     cfgRow('Sonido', 'Tonos al cambiar de paso y en los últimos 3 s', cfgToggleCtl('sound')) +
+    cfgRow('Metrónomo', 'Ejercicios en movimiento: tono agudo en la ida y grave en la vuelta', cfgToggleCtl('metronome')) +
     cfgRow('Voz', 'Dice el ejercicio, el lado y qué preparar', cfgToggleCtl('voice')) +
     cfgRow('Vibración', 'Solo en teléfono', cfgToggleCtl('vibrate')) +
     cfgRow('Solo un lado', 'Salta el segundo lado de los ejercicios unilaterales', cfgToggleCtl('oneSide'));

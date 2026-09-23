@@ -222,6 +222,11 @@
           </div>
         </div>
         <div class="pl-side" id="pl-side"></div>
+        <div class="pl-beat hidden" id="pl-beat">
+          <div class="pl-beat-track"><span class="pl-beat-end"></span><span class="pl-beat-end r"></span><i class="pl-beat-dot" id="pl-beat-dot"></i></div>
+          <p class="pl-beat-word" id="pl-beat-word"></p>
+          <p class="pl-beat-cue" id="pl-beat-cue"></p>
+        </div>
       </div>
 
       <section class="pl-card">
@@ -244,6 +249,11 @@
     <div class="pl-done hidden" id="pl-done"></div>
 
     <div class="pl-bottom" id="pl-controls">
+      <div class="pl-tempo hidden" id="pl-tempo">
+        <button class="pl-tempo-btn" onclick="plTempo(-.5)" aria-label="Más rápido">−</button>
+        <div class="pl-tempo-txt"><span>Ritmo</span><b id="pl-tempo-val"></b></div>
+        <button class="pl-tempo-btn" onclick="plTempo(.5)" aria-label="Más lento">+</button>
+      </div>
       <div class="pl-next" id="pl-next"></div>
       <div class="pl-controls">
         <button class="pl-btn" onclick="plPrev()" aria-label="Anterior">
@@ -432,6 +442,11 @@
           <label><span class="form-label">Repeticiones</span><input type="number" id="ex-holds" class="form-input" placeholder="3" min="1" max="50"/></label>
           <label><span class="form-label">Series</span><input type="number" id="ex-sets-time" class="form-input" placeholder="1" min="1" max="20"/></label>
         </div>
+        <div class="field-grid" style="margin-top:12px">
+          <label><span class="form-label">Ritmo guiado <span class="optional">s ida y vuelta</span></span><input type="number" id="ex-rhythm" class="form-input" placeholder="Sin ritmo" min="2" max="12" step="0.5"/></label>
+        </div>
+        <p class="form-hint">Con ritmo, el ejercicio es de movimiento continuo: suena un metrónomo (agudo en la ida, grave en la vuelta) y dura máximo 2 min en total. En el reproductor se ajusta con − y +.</p>
+        <button class="btn-link" id="ex-rhythm-restore" onclick="restoreRhythm()"></button>
       </div>
       <div id="type-reps-fields" class="form-group hidden">
         <div class="field-grid">
@@ -461,6 +476,11 @@
           </div>
           <p class="form-hint">«Alternar» cambia de lado en cada serie: el otro lado descansa mientras trabajas.</p>
         </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="ex-rest">Descanso propio <span class="optional">opcional</span></label>
+        <input type="number" id="ex-rest" class="form-input" placeholder="El de la rutina" min="0" max="300"/>
+        <p class="form-hint">Segundos entre repeticiones, series y lados de este ejercicio. Vacío: se usa el descanso de la rutina.</p>
       </div>
       <div class="form-group">
         <label class="form-label" for="ex-setup">Preparación <span class="optional">opcional</span></label>

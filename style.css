@@ -44,6 +44,9 @@
   --nav-h: 68px;
   --safe-top:    env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* 1 % del ancho y del alto de la app en vertical (ver «Siempre vertical») */
+  --vw: 1vw;
+  --vh: 1vh;
 
   --serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --sans:  'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -528,7 +531,7 @@ input, textarea, select { font-size: 16px !important; font-family: var(--sans); 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .sheet {
-  width: 100%; max-height: 92vh;
+  width: 100%; max-height: calc(var(--vh) * 92);
   background: var(--paper);
   border-radius: 24px 24px 0 0;
   display: flex; flex-direction: column;
@@ -708,7 +711,7 @@ input, textarea, select { font-size: 16px !important; font-family: var(--sans); 
 .btn-link.muted { display: block; width: 100%; text-align: center; color: var(--ink-3); margin-top: 6px; }
 
 /* ══ MODO LISTA ══ */
-.run-sheet { height: 92vh; }
+.run-sheet { height: calc(var(--vh) * 92); }
 .run-ex-item {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 12px 12px 14px; margin-bottom: 8px;
@@ -824,7 +827,7 @@ input, textarea, select { font-size: 16px !important; font-family: var(--sans); 
 
 .pl-ring {
   position: relative;
-  width: min(58vw, 30vh, 232px); aspect-ratio: 1;
+  width: min(calc(var(--vw) * 58), calc(var(--vh) * 30), 232px); aspect-ratio: 1;
 }
 .pl-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
 .pl-ring-track { fill: none; stroke: var(--line); stroke-width: 9; }
@@ -840,7 +843,7 @@ input, textarea, select { font-size: 16px !important; font-family: var(--sans); 
 /* Cifra sin remates y gruesa: se lee desde el piso con poca luz. */
 .pl-timer {
   font-family: var(--sans);
-  font-size: min(22.5vw, 11vh, 90px); font-weight: 800; line-height: .95;
+  font-size: min(calc(var(--vw) * 22.5), calc(var(--vh) * 11), 90px); font-weight: 800; line-height: .95;
   letter-spacing: -.04em; color: var(--live);
   font-variant-numeric: tabular-nums lining-nums;
   transition: color .35s ease;
@@ -861,6 +864,28 @@ input, textarea, select { font-size: 16px !important; font-family: var(--sans); 
   transition: background-color .35s ease;
 }
 
+/* Ritmo guiado: el punto va y viene con el metrónomo */
+.pl-beat { width: 100%; margin-top: 12px; text-align: center; }
+.pl-beat-track { position: relative; height: 30px; margin: 0 14px; }
+.pl-beat-track::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 13px; height: 4px;
+  border-radius: 2px; background: var(--live); opacity: .22;
+}
+.pl-beat-end {
+  position: absolute; left: -7px; top: 8px; width: 14px; height: 14px;
+  border-radius: 50%; border: 2px solid var(--live); opacity: .5;
+}
+.pl-beat-end.r { left: auto; right: -7px; }
+.pl-beat-dot {
+  position: absolute; top: 2px; left: 0; width: 26px; height: 26px; margin-left: -13px;
+  border-radius: 50%; background: var(--live); box-shadow: 0 2px 8px rgba(0,0,0,.18);
+}
+.pl-beat-word {
+  margin-top: 6px; font-size: 26px; font-weight: 800; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--live); line-height: 1.1;
+}
+.pl-beat-cue { font-size: 15px; color: var(--ink-2); margin-top: 2px; min-height: 22px; }
+
 .pl-card {
   background: var(--card); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 16px 18px; margin-bottom: 10px;
@@ -870,7 +895,7 @@ input, textarea, select { font-size: 16px !important; font-family: var(--sans); 
 
 .pl-fig-card { padding: 14px; }
 .pl-figure { display: flex; justify-content: center; }
-.pl-figure img { max-width: 100%; max-height: 34vh; object-fit: contain; mix-blend-mode: multiply; }
+.pl-figure img { max-width: 100%; max-height: calc(var(--vh) * 34); object-fit: contain; mix-blend-mode: multiply; }
 .pl-figure img.photo { width: 100%; object-fit: cover; mix-blend-mode: normal; border-radius: var(--radius-sm); }
 .pl-figure-fallback { font-size: 44px; padding: 20px; }
 .pl-notes { font-size: 16px; line-height: 1.6; color: var(--ink-2); margin-top: 6px; }
@@ -937,6 +962,23 @@ input, textarea, select { font-size: 16px !important; font-family: var(--sans); 
   font-size: 13px; font-weight: 800; letter-spacing: .06em; cursor: pointer;
 }
 
+/* − / + del ritmo: grandes, para atinarles desde el piso */
+.pl-tempo {
+  display: flex; align-items: center; justify-content: center; gap: 18px;
+  margin-bottom: 10px;
+}
+.pl-tempo-btn {
+  width: 60px; height: 48px; border-radius: 999px;
+  border: 1px solid var(--live); background: var(--live-soft); color: var(--live);
+  font-size: 26px; font-weight: 700; line-height: 1; cursor: pointer;
+}
+.pl-tempo-btn:active { background: var(--live); color: var(--on-live); }
+.pl-tempo-txt { display: flex; flex-direction: column; align-items: center; min-width: 76px; }
+.pl-tempo-txt span {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
+}
+.pl-tempo-txt b { font-size: 20px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+
 .pl-controls { display: flex; align-items: center; justify-content: space-evenly; }
 .pl-btn {
   width: 56px; height: 56px; border-radius: 50%;
@@ -978,16 +1020,38 @@ input, textarea, select { font-size: 16px !important; font-family: var(--sans); 
   position: fixed; bottom: calc(var(--nav-h) + var(--safe-bottom) + 16px);
   left: 50%; transform: translateX(-50%); z-index: 900;
   background: var(--forest); color: var(--paper);
-  border-radius: 999px; padding: 12px 20px; max-width: 88vw;
+  border-radius: 999px; padding: 12px 20px; max-width: calc(var(--vw) * 88);
   font-size: 14px; font-weight: 600; text-align: center;
   box-shadow: 0 6px 20px -6px rgba(27,56,43,.35);
   animation: toastIn .2s ease both;
 }
 @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
-/* ══ PANTALLAS ANCHAS ══ */
-@media (min-width: 560px) {
+/* ══ PANTALLAS ANCHAS ══ (un teléfono acostado no cuenta: tiene poca altura) */
+@media (min-width: 560px) and (min-height: 560px) {
   #app { max-width: 480px; left: 50%; transform: translateX(-50%); border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
   .bottom-nav { max-width: 480px; left: 50%; transform: translateX(-50%); }
   .modal-overlay .sheet, .modal-overlay .player { max-width: 480px; margin: 0 auto; }
 }
+
+/* ══ SIEMPRE VERTICAL ══
+   iOS no respeta «orientation» del manifest ni deja bloquear la rotación a
+   una app web. Cuando el teléfono se acuesta, fixPortrait() (app.js) marca
+   <html> con rot-l / rot-r y el body entero se contragira 90°: la app sigue
+   vertical respecto al teléfono. Todo lo fijo (modales, reproductor, avisos)
+   vive dentro del body y gira con él. --sw / --sh: ancho y alto de la ventana. */
+html.rot-l, html.rot-r {
+  --vw: calc(var(--sh) / 100);
+  --vh: calc(var(--sw) / 100);
+}
+html.rot-l body, html.rot-r body {
+  position: fixed; left: 0; top: 0;
+  width: var(--sh); height: var(--sw);
+  transform-origin: 0 0;
+}
+/* arriba de la app hacia la izquierda de la pantalla */
+html.rot-l body { top: var(--sh); transform: rotate(-90deg); }
+html.rot-l { --safe-top: env(safe-area-inset-left, 0px); --safe-bottom: env(safe-area-inset-right, 0px); }
+/* arriba de la app hacia la derecha de la pantalla */
+html.rot-r body { left: var(--sw); transform: rotate(90deg); }
+html.rot-r { --safe-top: env(safe-area-inset-right, 0px); --safe-bottom: env(safe-area-inset-left, 0px); }

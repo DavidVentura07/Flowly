@@ -48,7 +48,8 @@ const BOCA_ARRIBA = 'Boca arriba';
 const BOCA_ABAJO  = 'Boca abajo';
 const DE_LADO     = 'De lado';
 const CUADRUPEDIA = 'Manos y rodillas';
-const POSITIONS = [DE_PIE, DE_RODILLAS, SENTADO, BOCA_ARRIBA, BOCA_ABAJO, DE_LADO, CUADRUPEDIA];
+const COLGADO     = 'Colgado';
+const POSITIONS = [DE_PIE, DE_RODILLAS, SENTADO, BOCA_ARRIBA, BOCA_ABAJO, DE_LADO, CUADRUPEDIA, COLGADO];
 
 const LR = ['Izquierdo', 'Derecho'];
 
@@ -70,6 +71,11 @@ const LR = ['Izquierdo', 'Derecho'];
 // setup         : qué preparar (anclaje, liga, silla…); se anuncia al cambiar
 // band          : usa liga; la resistencia sale de la tabla de progresión
 // fig           : nombre de la figura en assets/
+// rhythm        : movimiento continuo guiado por metrónomo (solo 'time'):
+//                 { cycle: s de ida + vuelta, ida, vuelta }. Tono agudo al
+//                 empezar la ida y grave al empezar la vuelta.
+// rest          : s de descanso propio entre repeticiones, series y lados
+//                 (si falta, el de la rutina)
 // ══════════════════════════════════
 
 // ── ESTIRAMIENTOS · 22 ejercicios · 1 serie · 3 × 10 s ──
@@ -464,6 +470,78 @@ const BLOCK_EXERCISES = [
 }));
 
 const ALL_SEED_EXERCISES = [...MOBILITY_EXERCISES, ...STRENGTH_EXERCISES, ...BLOCK_EXERCISES];
+
+// ── PROPIOS · 14 ejercicios que ya se hacían antes del plan ──
+// No son prescritos ni van en ninguna rutina: aparecen en Biblioteca ›
+// Propios y se agregan a mano a las rutinas. Entran una sola vez
+// (seedOwnExercises); si después se editan o se borran, se respeta.
+// Sin figura: las fotos se cargan en el teléfono y no se publican.
+// Lo que va por lado alterna lados; lo que se mueve no pasa de 2 min.
+const OWN_EXERCISES = [
+  { id:'prp_sl_rdl', pos:DE_PIE, zone:'Isquiotibiales', type:'reps', sets:2, reps:8, tempo:4.5,
+    name:'Peso muerto rumano a una pierna (Single Leg RDL)',
+    setup:'Silla o pared (opcional, para el equilibrio)',
+    notes:'Rodilla de apoyo ligeramente flexionada y bisagra de cadera hacia atrás. La pierna libre se extiende alineada con el torso. Bajar lento (3 s) hasta sentir la carga en el isquiotibial, sin redondear la zona lumbar.',
+    variants:LR },
+  { id:'prp_couch', pos:DE_RODILLAS, zone:'Cuádriceps', type:'time', sets:2, reps:1, duration:45,
+    name:'Estiramiento de sofá (Couch stretch)',
+    setup:'Pared o sofá · tapete bajo la rodilla',
+    notes:'Rodilla de atrás pegada a la pared o al sofá, con la tibia vertical. Pierna de adelante a 90°, en zancada. Apretar el glúteo de atrás para bascular la pelvis hacia atrás y erguir el torso poco a poco, sin arquear la zona lumbar.',
+    variants:LR },
+  { id:'prp_toracica', pos:DE_PIE, zone:'Espalda', type:'time', sets:1, reps:1, duration:80,
+    name:'Rotación torácica activa (Thoracic rotation)',
+    setup:'Palo',
+    notes:'Palo sobre la espalda alta y el torso ligeramente inclinado hacia adelante. Girar lento y controlado hacia un lado y hacia el otro: 10 por lado.',
+    rhythm:{ cycle:8, ida:'Gira a la derecha', vuelta:'Gira a la izquierda' } },
+  { id:'prp_ankle', pos:DE_RODILLAS, zone:'Tobillos', type:'time', sets:2, reps:1, duration:30,
+    name:'Balanceo de tobillo (Ankle rocks)',
+    notes:'Pie de adelante plano. Llevar la rodilla hacia adelante sobre los dedos, cargando la pantorrilla, y regresar sin despegar el talón. Las manos pueden empujar la rodilla.',
+    variants:LR, rhythm:{ cycle:3, ida:'Rodilla al frente', vuelta:'Regresa' } },
+  { id:'prp_9090_lift', pos:SENTADO, zone:'Cadera', type:'reps', sets:2, reps:8, tempo:4,
+    name:'90-90 con levantamiento de tobillo (90-90 ankle lift)',
+    notes:'En la posición 90-90, con las manos apoyadas a los lados, elevar el tobillo de la pierna de adelante lo más alto posible sin despegar la rodilla, con control, y bajar.',
+    variants:LR },
+  { id:'prp_deep_squat', pos:DE_PIE, zone:'Cadera', type:'time', sets:1, reps:3, duration:30,
+    name:'Sentadilla profunda (Deep squat)',
+    notes:'Pies un poco más anchos que la cadera, puntas ligeramente afuera. Bajar lento y empujar las rodillas hacia afuera, alineadas con los pies. Pecho erguido y abdomen activo. Puedes apoyarte para el equilibrio.' },
+  { id:'prp_cossack', pos:DE_PIE, zone:'Aductores', type:'time', sets:1, reps:1, duration:90,
+    name:'Sentadilla cosaca (Cossack squat)',
+    notes:'Postura amplia. Bajar sobre una pierna mientras la otra se queda estirada, y pasar al otro lado. Girar la punta del pie estirado hacia arriba suma a los isquiotibiales.',
+    rhythm:{ cycle:6, ida:'Baja a la derecha', vuelta:'Baja a la izquierda' } },
+  { id:'prp_dead_hang', pos:COLGADO, zone:'Hombros', type:'time', sets:1, reps:3, duration:20,
+    name:'Colgado de barra (Dead hang)',
+    setup:'Barra',
+    notes:'Colgarse de la barra con los brazos estirados y las manos a la anchura de los hombros. Abre los hombros y descomprime la columna. Se puede subir a 30 s.' },
+  { id:'prp_lunge', pos:DE_PIE, zone:'Cadera', type:'reps', sets:2, reps:8, tempo:4,
+    name:'Estocada profunda (Deep lunge)',
+    setup:'Silla (opcional, para el equilibrio)',
+    notes:'Zancada larga, rodilla de adelante sobre el pie y la de atrás sin tocar el piso. Bajar y subir lento. Abre los flexores de la cadera y fortalece glúteos y cuádriceps.',
+    variants:LR },
+  { id:'prp_nerve', pos:BOCA_ARRIBA, zone:'Isquiotibiales', type:'time', sets:1, reps:1, duration:60,
+    name:'Deslizamientos nerviosos (Nerve glides)',
+    notes:'Boca arriba (o sentado), sujetar el muslo con la cadera a 90° y estirar lento la rodilla hasta sentir un estiramiento suave atrás del muslo. Pausa breve y regresar. Si es fácil: en el punto máximo, flexionar y extender el tobillo.',
+    variants:LR, rhythm:{ cycle:4, ida:'Estira la rodilla', vuelta:'Dobla' } },
+  { id:'prp_rdl_hold', pos:DE_PIE, zone:'Isquiotibiales', type:'reps', sets:3, reps:5, tempo:3, hold:5,
+    name:'Flexión hacia adelante sostenida (RDL hold)',
+    setup:'Silla',
+    notes:'De pie junto a una silla, flexionar la cadera con las rodillas suavemente dobladas hasta tocarla con las manos. Levantar las manos sin perder la posición y sostener 5 s activando glúteos e isquiotibiales. Variantes: sin silla, con peso o sobre una superficie elevada.' },
+  { id:'prp_stick', pos:DE_PIE, zone:'Hombros', type:'time', sets:1, reps:1, duration:90,
+    name:'Rotaciones de hombro con palo (Stick pass-through)',
+    setup:'Palo, toalla o liga',
+    notes:'Agarre más ancho que los hombros. Pasar el palo por encima de la cabeza hasta atrás de la espalda y regresar lento. Conforme ganes movilidad, acerca las manos.',
+    rhythm:{ cycle:4, ida:'Palo por encima, hasta atrás', vuelta:'Regresa al frente' } },
+  { id:'prp_9090', pos:SENTADO, zone:'Cadera', type:'time', sets:1, reps:1, duration:60,
+    name:'Estiramiento 90-90 (90-90 stretch)',
+    notes:'Ambas piernas a 90°. Con la espalda recta, inclinarse sobre la pierna de adelante. Opcional: empujar la pierna contra la mano al 50–60 % unos segundos, relajar y profundizar.',
+    variants:LR },
+  { id:'prp_wipers', pos:SENTADO, zone:'Cadera', type:'time', sets:1, reps:1, duration:120,
+    name:'Limpiaparabrisas (Windshield wipers)',
+    notes:'Sentado, piernas un poco más abiertas que la cadera y apoyado hacia atrás en las manos. Llevar las rodillas de un lado al otro, tocando el suelo al final del rango.',
+    rhythm:{ cycle:6, ida:'Rodillas a la derecha', vuelta:'Rodillas a la izquierda' } },
+].map(e => ({
+  img:null, variants:null, variantOrder:'cycle', duration:null, tempo:null, hold:null, setup:null,
+  ...e,
+}));
 
 // ══════════════════════════════════
 // PROGRESIÓN DEL FORTALECIMIENTO

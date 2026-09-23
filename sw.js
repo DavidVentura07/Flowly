@@ -1,7 +1,7 @@
 // data.js no toca el DOM: se reutiliza aquí para saber qué figuras precargar.
 importScripts('data.js');
 
-const CACHE = 'flowly-v7';
+const CACHE = 'flowly-v8';
 const FONTS = 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap';
 const ASSETS = [
   './', './index.html', './style.css', './app.js', './data.js', './manifest.json',

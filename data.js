@@ -648,3 +648,31 @@ const SEED_ROUTINES = [
   { id:'blq_mjs_4', kind:'bloque', days:[2,4,6], sheet:4, name:'Hoja 4 · Ma-J-S', desc:'Bloque de 10 min',
     items: items(['blq_b4_1','blq_b4_2','blq_b4_3','blq_b4_4']) },
 ];
+
+// ── RUTINAS PROPIAS · noche alterna ──
+// Los 14 ejercicios propios y 7 estiramientos del plan, repartidos por
+// cadena muscular: L-Mi-V lo de atrás de la pierna y la rotación de cadera;
+// Ma-J-S lo de adelante, el tobillo y los hombros. El palo va en las dos.
+// Tipo «movilidad»: entran solas a la sesión de noche después de la fuerza.
+// No son prescritas: se crean una sola vez (seedOwnExercises) y después son
+// del usuario.
+const OWN_ROUTINES = [
+  { id:'rut_posterior', kind:'movilidad', days:[1,3,5],
+    name:'Posterior y cadera', desc:'Lunes, miércoles y viernes',
+    items: items([
+      'prp_stick','prp_toracica',               // de pie, con el palo
+      'prp_sl_rdl','prp_rdl_hold','mov_4_1',    // bisagra de cadera
+      'mov_3_2',                                // silla
+      'mov_2_4','prp_wipers','prp_9090','prp_9090_lift',   // sentado en piso
+      'prp_nerve',                              // boca arriba
+    ]) },
+  { id:'rut_anterior', kind:'movilidad', days:[2,4,6],
+    name:'Anterior, tobillo y hombros', desc:'Martes, jueves y sábado',
+    items: items([
+      'prp_dead_hang',                          // barra
+      'prp_stick','prp_deep_squat','prp_cossack','prp_lunge',
+      'mov_1_2','mov_5_4',                      // de pie, apoyo y pared
+      'prp_couch','prp_ankle',                  // de rodillas, pared
+      'mov_6_2','mov_4_4',                      // sentado
+    ]) },
+];

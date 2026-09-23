@@ -123,7 +123,7 @@ function hydrate() {
   } catch (e) { console.warn('hydrate error', e); }
 }
 
-// Los ejercicios propios entran solos, una sola vez y sin rutina. Lo que ya
+// Los ejercicios y las rutinas propias entran solos, una sola vez. Lo que ya
 // se agregó no se vuelve a tocar: si se edita o se borra, así se queda.
 function seedOwnExercises() {
   let added = 0;
@@ -132,7 +132,27 @@ function seedOwnExercises() {
     if (!exById(ex.id)) { S.exercises.push(JSON.parse(JSON.stringify(ex))); added++; }
     S.ownSeeded.push(ex.id);
   });
-  return added;
+
+  const ownIds = OWN_ROUTINES.map(r => r.id);
+  let newRoutines = 0;
+  OWN_ROUTINES.forEach(r => {
+    if (S.ownSeeded.includes(r.id)) return;
+    S.ownSeeded.push(r.id);
+    if (S.routines.some(x => x.id === r.id)) return;
+    S.routines.push(JSON.parse(JSON.stringify(r)));
+    newRoutines++;
+  });
+  if (newRoutines) {
+    // Reemplazan a los estiramientos de cada noche: los demás de ese tipo se
+    // apagan para que la sesión no junte dos. No se borran; se vuelven a
+    // encender en Biblioteca.
+    let off = 0;
+    S.routines.forEach(x => {
+      if (x.kind === 'movilidad' && !ownIds.includes(x.id) && isActive(x)) { x.active = false; off++; }
+    });
+    S.ownNotice = `Rutinas nuevas: L-Mi-V y Ma-J-S${off ? ` · ${off === 1 ? 'se apagó «Estiramientos»' : `se apagaron ${off} rutinas de estiramientos`}` : ''}`;
+  }
+  return added + newRoutines;
 }
 
 function pruneDoneLog() {
@@ -405,6 +425,7 @@ function initViews() {
   renderHoy();
   renderLibrary();
   renderPerfil();
+  if (S.ownNotice) { showToast(S.ownNotice); S.ownNotice = null; }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
@@ -2404,7 +2425,11 @@ function seedRoutine() {
     const copy = JSON.parse(JSON.stringify(seed));
     const i = S.routines.findIndex(r => r.id === seed.id);
     const cur = S.routines[i];
-    if (i === -1) S.routines.push(copy);
+    if (i === -1) {
+      const ownNight = seed.kind === 'movilidad' &&
+        S.routines.some(r => OWN_ROUTINES.some(o => o.id === r.id) && isActive(r));
+      S.routines.push(ownNight ? { ...copy, active: false } : copy);
+    }
     // las que editaste se quedan como están: solo «Restaurar» las devuelve al plan
     else if (!cur.edited) S.routines[i] = {
       ...copy, days: cur.days !== undefined ? cur.days : copy.days,

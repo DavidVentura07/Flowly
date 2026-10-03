@@ -51,7 +51,8 @@ const CUADRUPEDIA = 'Manos y rodillas';
 const COLGADO     = 'Colgado';
 const POSITIONS = [DE_PIE, DE_RODILLAS, SENTADO, BOCA_ARRIBA, BOCA_ABAJO, DE_LADO, CUADRUPEDIA, COLGADO];
 
-const LR = ['Izquierdo', 'Derecho'];
+// Todo empieza por el lado derecho.
+const LR = ['Derecho', 'Izquierdo'];
 
 // ══════════════════════════════════
 // MODELO DE EJERCICIO
@@ -111,8 +112,8 @@ const MOBILITY_EXERCISES = [
     variants:LR },
   { id:'mov_2_4', fig:'2_4', pos:SENTADO, zone:'Isquiotibiales',
     name:'Sentado, piernas abiertas: rodilla · centro · rodilla',
-    notes:'Sentado, piernas abiertas, rodillas bien estiradas. Llevar el pecho hacia la rodilla izquierda (A), al centro (B) y a la rodilla derecha (C).',
-    variants:['A · rodilla izquierda', 'B · centro', 'C · rodilla derecha'], variantOrder:'cycle' },
+    notes:'Sentado, piernas abiertas, rodillas bien estiradas. Llevar el pecho hacia la rodilla derecha (C), al centro (B) y a la rodilla izquierda (A).',
+    variants:['C · rodilla derecha', 'B · centro', 'A · rodilla izquierda'], variantOrder:'cycle' },
 
   { id:'mov_3_1', fig:'3_1', pos:DE_RODILLAS, zone:'Cadera',
     name:'Rodilla al frente, pierna de atrás estirada',

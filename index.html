@@ -462,7 +462,7 @@
         <p class="form-label">Lados y variantes</p>
         <div class="seg">
           <button class="seg-btn active" id="var-btn-none"   onclick="selectVarMode('none')">Una posición</button>
-          <button class="seg-btn"        id="var-btn-lr"     onclick="selectVarMode('lr')">Izq / Der</button>
+          <button class="seg-btn"        id="var-btn-lr"     onclick="selectVarMode('lr')">Der / Izq</button>
           <button class="seg-btn"        id="var-btn-custom" onclick="selectVarMode('custom')">Otras</button>
         </div>
         <input type="text" id="ex-variants" class="form-input hidden" style="margin-top:10px"
@@ -478,9 +478,14 @@
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label" for="ex-rest">Descanso propio <span class="optional">opcional</span></label>
-        <input type="number" id="ex-rest" class="form-input" placeholder="El de la rutina" min="0" max="300"/>
-        <p class="form-hint">Segundos entre repeticiones, series y lados de este ejercicio. Vacío: se usa el descanso de la rutina.</p>
+        <span class="form-label">Descansos propios <span class="optional">opcional</span></span>
+        <div class="field-grid field-grid-2">
+          <label><span class="form-label">Preparación</span><input type="number" id="ex-rest-prep" class="form-input" placeholder="Rutina" min="0" max="600"/></label>
+          <label><span class="form-label">Cambio de lado</span><input type="number" id="ex-rest-variant" class="form-input" placeholder="Rutina" min="0" max="600"/></label>
+          <label><span class="form-label">Entre series</span><input type="number" id="ex-rest-set" class="form-input" placeholder="Rutina" min="0" max="600"/></label>
+          <label><span class="form-label">Entre repeticiones</span><input type="number" id="ex-rest-rep" class="form-input" placeholder="Rutina" min="0" max="600"/></label>
+        </div>
+        <p class="form-hint">Segundos. También se ajustan con − / + en la pantalla de descanso. La preparación no se usa si el ejercicio anterior ya dejó montada la misma liga. Vacío: el descanso de la rutina.</p>
       </div>
       <div class="form-group">
         <label class="form-label" for="ex-setup">Preparación <span class="optional">opcional</span></label>

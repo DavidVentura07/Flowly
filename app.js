@@ -5,13 +5,14 @@
 const $ = id => document.getElementById(id);
 
 // ── STATE ──
-const CFG_VERSION = 3;
+const CFG_VERSION = 4;
 
 let S = {
   exercises:    [],   // ver el modelo en data.js
   routines:     [],   // { id, name, desc, kind, days, sheet, items: [{exId, sets, reps, duration, prog, band, variantOrder}] }
   activeDays:   [],   // ['2026-09-15', ...] días con al menos una rutina hecha
   doneLog:      {},   // { '2026-09-15': [routineId, ...] }
+  timeLog:      {},   // { '2026-09-15': [{ ids, title, real, active, plan, at }] } en segundos
   ownSeeded:    [],   // ids de OWN_EXERCISES que ya se agregaron una vez
   accentIndex:  0,
 
@@ -86,6 +87,7 @@ function persist() {
       routines:    S.routines,
       activeDays:  S.activeDays,
       doneLog:     S.doneLog,
+      timeLog:     S.timeLog,
       ownSeeded:   S.ownSeeded,
       accentIndex: S.accentIndex,
       cfg:         S.cfg,
@@ -103,7 +105,9 @@ function hydrate() {
     S.routines    = d.routines    || [];
     S.activeDays  = d.activeDays  || [];
     S.doneLog     = d.doneLog     || {};
+    S.timeLog     = d.timeLog     || {};
     S.ownSeeded   = d.ownSeeded   || [];
+    if ((d.cfgVersion || 0) < 4) migrateRightFirst(S.exercises);
     // rutinas sembradas antes de que existiera el tipo
     S.routines.forEach(r => {
       const seed = SEED_ROUTINES.find(s => s.id === r.id);
@@ -158,6 +162,7 @@ function seedOwnExercises() {
 function pruneDoneLog() {
   const limit = addDays(todayStr(), -400);
   Object.keys(S.doneLog).forEach(k => { if (k < limit) delete S.doneLog[k]; });
+  Object.keys(S.timeLog).forEach(k => { if (k < limit) delete S.timeLog[k]; });
 }
 
 // ── ACCENT ──
@@ -210,8 +215,9 @@ const KIND_LABEL = { movilidad:'Estiramientos', fuerza:'Fuerza', bloque:'Bloque 
 
 function fmtClock(sec) {
   sec = Math.max(0, Math.round(sec));
-  const m = Math.floor(sec / 60), s = sec % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+  const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60;
+  const ss = String(s).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
 }
 
 function fmtDuration(sec) {
@@ -225,6 +231,19 @@ function fmtSecs(v) {
 
 function exById(id) { return S.exercises.find(e => e.id === id); }
 
+// Descansos propios (`rests`) de un ejercicio. `rest` es el viejo: uno solo
+// para repeticiones, series y lados.
+const REST_KEYS = ['prep', 'variant', 'set', 'rep'];
+function exRest(ex, key) {
+  const v = ex.rests && ex.rests[key];
+  if (v != null) return v;
+  return key !== 'prep' && ex.rest != null ? ex.rest : null;
+}
+function restsText(ex) {
+  const words = { prep: 'preparación', variant: 'cambio de lado', set: 'entre series', rep: 'entre repeticiones' };
+  return REST_KEYS.filter(k => exRest(ex, k) != null).map(k => `${words[k]} ${fmtSecs(exRest(ex, k))}`).join(' · ');
+}
+
 // Movimiento continuo guiado por metrónomo (ver data.js).
 function hasRhythm(ex) { return !!(ex && ex.type === 'time' && ex.rhythm && ex.rhythm.cycle > 0); }
 
@@ -234,6 +253,19 @@ function exVariants(ex, applyOneSide) {
   if (!v) return null;
   if (applyOneSide && S.cfg.oneSide && v.length === 2) return [v[0]];
   return v;
+}
+
+function isLR(v) { return !!v && v.length === 2 && v.includes('Derecho') && v.includes('Izquierdo'); }
+
+// Desde oct-2026 todo empieza por el lado derecho. Voltea lo guardado antes
+// (datos del teléfono o backups viejos) que seguía empezando por el izquierdo.
+function migrateRightFirst(exercises) {
+  (exercises || []).forEach(ex => {
+    const v = ex.variants;
+    if (!Array.isArray(v)) return;
+    if (v.length === 2 && v[0] === 'Izquierdo' && v[1] === 'Derecho') ex.variants = ['Derecho', 'Izquierdo'];
+    else if (v.length === 3 && v[0] === 'A · rodilla izquierda' && v[2] === 'C · rodilla derecha') ex.variants = [...v].reverse();
+  });
 }
 
 // Ilustración: la foto propia tiene prioridad sobre la figura de la lámina.
@@ -321,7 +353,7 @@ function fmtParams(item, ex) {
   if (ex.type === 'time') parts.push(r.sets > 1 ? `${r.sets} × ${r.reps} × ${r.duration} s` : `${r.reps} × ${r.duration} s`);
   else                    parts.push(`${r.sets} × ${r.reps}`);
   const v = exVariants(ex);
-  if (v) parts.push(v.length === 2 && v[0] === 'Izquierdo' ? 'por lado' : `${v.length} variantes`);
+  if (v) parts.push(isLR(v) ? 'por lado' : `${v.length} variantes`);
   else if (r.alt) parts.push('alternando');
   if (r.hold) parts.push(`sostén ${r.hold} s`);
   if (hasRhythm(ex)) parts.push(`ritmo ${ex.rhythm.cycle} s`);
@@ -738,7 +770,7 @@ function openExDetail(e, exId, routineId, itemIdx) {
       ${ex.setup ? `<div class="setup-box"><p class="eyebrow">Preparación</p><p>${esc(ex.setup)}</p></div>` : ''}
       ${r.hold ? `<p class="ex-detail-extra">Sostén ${r.hold} s en cada repetición.</p>` : ''}
       ${hasRhythm(ex) ? `<p class="ex-detail-extra">Movimiento continuo con metrónomo: tono agudo al empezar la ida (${esc(ex.rhythm.ida || 'ida')}) y grave al empezar la vuelta (${esc(ex.rhythm.vuelta || 'vuelta')}).</p>` : ''}
-      ${ex.rest != null ? `<p class="ex-detail-extra">Descanso propio: ${ex.rest} s entre repeticiones, series y lados.</p>` : ''}
+      ${restsText(ex) ? `<p class="ex-detail-extra">Descansos propios: ${restsText(ex)}.</p>` : ''}
       ${ex.notes ? `<p class="ex-detail-notes">${esc(ex.notes)}</p>` : ''}
     </div>`;
   $('modal-ex-detail').classList.remove('hidden');
@@ -1142,7 +1174,7 @@ function openExerciseForm(id) {
 
   $('exercise-form-title').textContent = id ? 'Editar ejercicio' : 'Nuevo ejercicio';
   $('ex-delete-btn').style.display = id ? 'block' : 'none';
-  ['ex-name','ex-duration','ex-sets-time','ex-holds','ex-reps','ex-sets-reps','ex-tempo','ex-hold','ex-setup','ex-notes','ex-variants','ex-rhythm','ex-rest']
+  ['ex-name','ex-duration','ex-sets-time','ex-holds','ex-reps','ex-sets-reps','ex-tempo','ex-hold','ex-setup','ex-notes','ex-variants','ex-rhythm','ex-rest-prep','ex-rest-variant','ex-rest-set','ex-rest-rep']
     .forEach(k => { $(k).value = ''; });
   selectType('time');
   resetImgPreview();
@@ -1160,7 +1192,7 @@ function openExerciseForm(id) {
     S.editExPos  = ex.pos || null;
     const v = Array.isArray(ex.variants) && ex.variants.length ? ex.variants : null;
     if (!v) selectVarMode('none');
-    else if (v.length === 2 && v[0] === 'Izquierdo' && v[1] === 'Derecho') selectVarMode('lr');
+    else if (isLR(v)) selectVarMode('lr');
     else { $('ex-variants').value = v.join(', '); selectVarMode('custom'); }
     selectVarOrder(ex.variantOrder || 'block');
     const r = rx({}, ex);
@@ -1176,7 +1208,7 @@ function openExerciseForm(id) {
     }
     if (ex.img) { S.editExImg = ex.img; showImgPreview(ex.img); }
     if (ex.type === 'time' && ex.rhythm && ex.rhythm.cycle) $('ex-rhythm').value = ex.rhythm.cycle;
-    if (ex.rest != null) $('ex-rest').value = ex.rest;
+    REST_KEYS.forEach(k => { const v = exRest(ex, k); if (v != null) $('ex-rest-' + k).value = v; });
   }
   paintRhythmRestore();
   renderZones();
@@ -1226,7 +1258,7 @@ function selectVarOrder(o) {
 }
 
 function readVariants() {
-  if (S.editExVarMode === 'lr') return ['Izquierdo', 'Derecho'];
+  if (S.editExVarMode === 'lr') return [...LR];
   if (S.editExVarMode !== 'custom') return null;
   const raw = $('ex-variants').value.split(',').map(s => s.trim()).filter(Boolean);
   return raw.length ? raw : null;
@@ -1264,7 +1296,8 @@ function saveExercise() {
     if (total > 120) { showToast(`Con ritmo guiado el total no pasa de 2 min (ahora ${fmtSecs(total)})`); return; }
   }
   const baseRhythm = (old && old.rhythm) || suggestedRhythm() || {};
-  const rest = num('ex-rest', parseInt);
+  const rests = {};
+  REST_KEYS.forEach(k => { const v = num('ex-rest-' + k, parseInt); rests[k] = v != null && v >= 0 ? Math.min(v, REST_MAX) : null; });
 
   const exData = {
     name,
@@ -1282,7 +1315,8 @@ function saveExercise() {
     variants:     readVariants(),
     variantOrder: S.editExVarOrder || 'block',
     rhythm:   cycle ? { ...baseRhythm, cycle } : null,
-    rest:     rest != null && rest >= 0 ? rest : null,
+    rests,
+    rest:     null,   // reemplazado por `rests`
   };
 
   if (S.editExId) {
@@ -1398,12 +1432,13 @@ function selectAccent(i) {
 // ══════════════════════════════════
 function exportData() {
   const payload = {
-    version:     3,
+    version:     4,
     exportedAt:  new Date().toISOString(),
     exercises:   S.exercises,
     routines:    S.routines,
     activeDays:  S.activeDays,
     doneLog:     S.doneLog,
+    timeLog:     S.timeLog,
     ownSeeded:   S.ownSeeded,
     accentIndex: S.accentIndex,
     cfg:         S.cfg,
@@ -1433,7 +1468,9 @@ function importData(e) {
       S.routines    = d.routines   || [];
       S.activeDays  = d.activeDays || [];
       S.doneLog     = d.doneLog    || {};
+      S.timeLog     = d.timeLog    || {};
       S.ownSeeded   = d.ownSeeded  || [];
+      if ((d.version || 0) < 4) migrateRightFirst(S.exercises);
       S.accentIndex = d.accentIndex ?? 0;
       if (d.cfg) S.cfg = { ...S.cfg, ...d.cfg };
       seedOwnExercises();
@@ -1494,6 +1531,8 @@ let _toastTimer;
 function showToast(msg) {
   const t = $('toast');
   t.textContent = msg;
+  // en el reproductor, arriba: abajo taparía los controles
+  t.classList.toggle('top', !$('modal-player').classList.contains('hidden'));
   t.classList.remove('hidden');
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => t.classList.add('hidden'), 2600);
@@ -1597,11 +1636,25 @@ function buildSteps(routines) {
     } else {
       secs = restFor(meta.kind, 'rep'); label = 'Descanso';
     }
-    // descanso propio del ejercicio, si lo tiene, dentro del mismo ejercicio
-    if (sameEx && ['variant', 'set', 'rep'].includes(gap) && step.ex.rest != null) secs = step.ex.rest;
+    // Descansos propios del ejercicio que sigue; se ajustan con − / + en el
+    // reproductor (`adj` dice cuál). La preparación no aplica si el anterior
+    // ya dejó montada la misma liga.
+    const own = step.ex.rests || {};
+    let adj = null;
+    if (sameEx && ['variant', 'set', 'rep'].includes(gap)) {
+      if (own[gap] != null) secs = own[gap];
+      else if (step.ex.rest != null) secs = step.ex.rest;
+      adj = gap;
+    } else if (!sameEx && ['start', 'ex', 'routine'].includes(gap)) {
+      const sameRig = !!(prev && step.ex.setup && prev.ex.setup === step.ex.setup);
+      if (!sameRig) {
+        if (own.prep != null) secs = gap === 'start' ? Math.max(own.prep, 3) : own.prep;
+        adj = 'prep';
+      }
+    }
     // el montaje se anuncia solo cuando cambia respecto al ejercicio anterior
     const setup = step.ex.setup && (!prev || (!sameEx && step.ex.setup !== prev.ex.setup)) ? step.ex.setup : null;
-    if (secs > 0) steps.push({ kind: 'rest', seconds: secs, label, gap, next: step, setup });
+    if (secs > 0) steps.push({ kind: 'rest', seconds: secs, label, gap, next: step, setup, adj });
     steps.push(step);
     prev = step;
   };
@@ -1676,12 +1729,45 @@ function routineSummary(routines) {
 // ══════════════════════════════════
 // SEÑALES: sonido, voz, vibración, pantalla encendida
 // ══════════════════════════════════
+// En iPhone el contexto de audio queda «interrupted» (no «suspended») tras
+// bloquear la pantalla, una llamada o salir de la app, y su reloj se congela.
+// Resumirlo fuera de un toque no siempre funciona, así que en cada toque del
+// reproductor (`audioUnlock`) se cambia por uno nuevo si no está corriendo.
 let _actx = null;
+function audioReady() { return !!_actx && _actx.state === 'running'; }
+
+function audioCtx() {
+  try {
+    if (!_actx || _actx.state === 'closed') _actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_actx.state !== 'running') _actx.resume().catch(() => {});
+    return _actx;
+  } catch (e) { return null; }
+}
+
+function audioUnlock() {
+  try {
+    if (_actx && _actx.state !== 'running') {
+      const old = _actx; _actx = null;
+      old.close().catch(() => {});
+    }
+    const ctx = audioCtx(); if (!ctx) return;
+    // un instante de silencio dentro del toque termina de desbloquearlo en iOS
+    const b = ctx.createBufferSource();
+    b.buffer = ctx.createBuffer(1, 1, 22050);
+    b.connect(ctx.destination); b.start(0);
+  } catch (e) {}
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && _actx && _actx.state !== 'running') {
+    _actx.resume().catch(() => {});
+  }
+});
+
 function beep(freq = 880, ms = 130, vol = .22) {
   if (!S.cfg.sound) return;
   try {
-    _actx = _actx || new (window.AudioContext || window.webkitAudioContext)();
-    if (_actx.state === 'suspended') _actx.resume();
+    if (!audioCtx()) return;
     const o = _actx.createOscillator(), g = _actx.createGain();
     o.type = 'sine';
     o.frequency.value = freq;
@@ -1719,16 +1805,8 @@ const TEMPO_MIN = 2, TEMPO_MAX = 12;
 
 function isRhythmStep(s) { return !!(s && s.kind === 'hold' && hasRhythm(s.ex)); }
 
-function metroCtx() {
-  try {
-    _actx = _actx || new (window.AudioContext || window.webkitAudioContext)();
-    if (_actx.state === 'suspended') _actx.resume();
-    return _actx;
-  } catch (e) { return null; }
-}
-
 function metroTone(m, hi, at) {
-  const ctx = _actx;
+  const ctx = m.actx;
   const o = ctx.createOscillator(), g = ctx.createGain();
   const ms = hi ? 110 : 150;
   o.type = hi ? 'triangle' : 'sine';
@@ -1751,8 +1829,10 @@ function metroStart(fromNow) {
   const prev = p.metro;
   metroStop();
   if (!isRhythmStep(s) || !p.playing) return;
-  const ctx = S.cfg.metronome ? metroCtx() : null;
-  const m = { ctx: !!ctx, half: s.ex.rhythm.cycle / 2, nodes: [], flip: 0, t0: 0, k: 0 };
+  // Solo se usa el reloj de audio si de verdad corre; si no, el punto sigue
+  // con el reloj del sistema y plTick re-ancla en cuanto el audio despierte.
+  const ctx = S.cfg.metronome && audioCtx() && audioReady() ? _actx : null;
+  const m = { ctx: !!ctx, actx: ctx, half: s.ex.rhythm.cycle / 2, nodes: [], flip: 0, t0: 0, k: 0 };
   const now = metroNow(m);
   if (fromNow && prev) {
     m.t0 = now + .12;
@@ -1772,7 +1852,14 @@ function metroStop() {
   p.metro = null;
 }
 
-function metroNow(m) { return m.ctx ? _actx.currentTime : performance.now() / 1000; }
+function metroNow(m) { return m.ctx ? m.actx.currentTime : performance.now() / 1000; }
+
+// El audio cambió desde que arrancó el metrónomo (despertó, se interrumpió o
+// se reemplazó el contexto): hay que volver a anclarlo.
+function metroStale(m) {
+  if (!S.cfg.metronome) return false;
+  return m.ctx ? (m.actx !== _actx || !audioReady()) : audioReady();
+}
 
 function metroPump() {
   const p = S.pl; if (!p || !p.metro || !p.playing) return;
@@ -1835,6 +1922,7 @@ function plTempo(delta) {
   const ex = s.ex;
   const cycle = Math.min(TEMPO_MAX, Math.max(TEMPO_MIN, Math.round((ex.rhythm.cycle + delta) * 2) / 2));
   if (cycle === ex.rhythm.cycle) return;
+  audioUnlock();
   ex.rhythm = { ...ex.rhythm, cycle };
   persist();
   if (p.playing) metroStart(true);
@@ -1900,6 +1988,7 @@ function plOpen(ids) {
     const last = blocks[blocks.length - 1];
     if (last && last.key === key) last.seconds += s.seconds;
     else blocks.push({ key, seconds: s.seconds, offset: 0 });
+    s.blk = blocks.length - 1;
   });
   let bo = 0;
   blocks.forEach(b => { b.offset = bo; bo += b.seconds; });
@@ -1912,6 +2001,7 @@ function plOpen(ids) {
     i: 0, left: steps[0].seconds, playing: false,
     endAt: 0, tickId: null, lastSec: null, lastRep: null, inHold: false,
     skipFirstCount: false, finished: false,
+    startedAt: 0, runSince: 0, activeMs: 0,   // reloj real de la sesión
   };
 
   $('pl-segments').innerHTML = blocks.map(b =>
@@ -1926,6 +2016,18 @@ function plOpen(ids) {
   plRender();
   plAnnounce();
   plPlay();
+}
+
+// Reloj real: `startedAt` marca el primer «reproducir»; `activeMs` suma solo
+// el tiempo corriendo, para separar las pausas.
+function clockRun(p) {
+  const now = Date.now();
+  if (!p.startedAt) p.startedAt = now;
+  if (!p.runSince) p.runSince = now;
+}
+function clockStop(p) {
+  if (p.runSince) p.activeMs += Date.now() - p.runSince;
+  p.runSince = 0;
 }
 
 function plClose() {
@@ -1948,18 +2050,21 @@ function plPlay() {
     if (!S.pl || S.pl.finished) return;
   }
   p.playing = true;
+  clockRun(p);
   p.endAt   = Date.now() + p.left * 1000;
   clearInterval(p.tickId);
   p.tickId = setInterval(plTick, 100);
   acquireWakeLock();
   plPaintControls();
-  beep(660, 90, .12);   // el primer gesto desbloquea el audio en móvil
+  audioUnlock();        // cada toque de reproducir revive el audio en el iPhone
+  beep(660, 90, .12);
   metroStart();
 }
 
 function plPause() {
   const p = S.pl; if (!p) return;
   metroStop();
+  clockStop(p);
   p.playing = false;
   clearInterval(p.tickId);
   p.tickId = null;
@@ -1971,8 +2076,9 @@ function plToggle() {
   const p = S.pl; if (!p) return;
   const s = p.steps[p.i];
   if (isManualSet(s)) {           // «Listo»: la serie se terminó
+    audioUnlock();
     beep(1040, 160, .24); buzz([120, 50, 120]);
-    if (!p.playing) { p.playing = true; clearInterval(p.tickId); p.tickId = setInterval(plTick, 100); acquireWakeLock(); }
+    if (!p.playing) { p.playing = true; clockRun(p); clearInterval(p.tickId); p.tickId = setInterval(plTick, 100); acquireWakeLock(); }
     return plGo(p.i + 1);
   }
   p.playing ? plPause() : plPlay();
@@ -1995,7 +2101,7 @@ function plTick() {
 
   if (isRhythmStep(s)) {
     // el metrónomo marca el paso; sin cuenta regresiva para no encimar tonos
-    if (p.metro) metroPump();
+    if (p.metro && !metroStale(p.metro)) metroPump();
     else metroStart();
     plPaintBeat();   // respaldo por si el navegador frena requestAnimationFrame
   } else if (s.kind === 'set') {
@@ -2041,8 +2147,9 @@ function plGo(idx) {
   if (p.playing) metroStart();
 }
 
-function plNext() { const p = S.pl; if (p) plGo(p.i + 1); }
+function plNext() { const p = S.pl; if (p) { audioUnlock(); plGo(p.i + 1); } }
 function plPrev() {
+  audioUnlock();
   const p = S.pl; if (!p) return;
   // si ya avanzó dentro del paso, el primer toque lo reinicia
   const step = p.steps[p.i];
@@ -2146,7 +2253,11 @@ function plRender() {
   const nx = resting ? null : p.steps.slice(p.i + 1).find(x =>
     isPerform(x) && (x.ex.id !== ex.id || x.variant !== t.variant));
   $('pl-next').innerHTML =
-      resting ? `<button class="pl-plus" onclick="plAddTime(10)">+10 s</button>`
+      resting ? `<div class="pl-rest-adj">
+        <button class="pl-tempo-btn" onclick="plRestAdjust(-REST_STEP)" aria-label="Menos descanso">−</button>
+        <div class="pl-tempo-txt"><span>${s.adj ? REST_ADJ_LABEL[s.adj] : 'Solo esta vez'}</span><b id="pl-rest-val">${fmtSecs(s.seconds)}</b></div>
+        <button class="pl-tempo-btn" onclick="plRestAdjust(REST_STEP)" aria-label="Más descanso">+</button>
+      </div>`
     : nx ? `<span class="pl-next-label">Sigue</span><span class="pl-next-name">${esc(nx.ex.name)}${nx.variant ? ' · ' + esc(nx.variant) : ''}</span>`
     : `<span class="pl-next-label">Último</span><span class="pl-next-name">ya casi terminas</span>`;
 
@@ -2197,18 +2308,49 @@ function plZoomFill() {
 }
 
 // Alarga el paso actual (útil en los descansos, cuando la postura cuesta).
-function plAddTime(sec) {
+// Rehace inicios, total y segmentos de la barra tras cambiar duraciones.
+function plRecalc() {
   const p = S.pl; if (!p) return;
-  const b = p.blocks.find(x => p.offsets[p.i] >= x.offset && p.offsets[p.i] < x.offset + x.seconds);
-  p.left += sec;
-  p.steps[p.i].seconds += sec;
-  p.total += sec;
-  for (let k = p.i + 1; k < p.offsets.length; k++) p.offsets[k] += sec;
-  if (b) {
-    b.seconds += sec;
-    p.blocks.forEach(x => { if (x.offset > b.offset) x.offset += sec; });
+  let acc = 0;
+  p.offsets = p.steps.map(s => { const o = acc; acc += s.seconds; return o; });
+  p.total = acc;
+  p.blocks.forEach(b => { b.seconds = 0; });
+  p.steps.forEach(s => { p.blocks[s.blk].seconds += s.seconds; });
+  let bo = 0;
+  p.blocks.forEach(b => { b.offset = bo; bo += b.seconds; });
+}
+
+// − / + en la pantalla de descanso. Si el descanso es propio del ejercicio
+// que sigue (`adj`), el nuevo total se guarda en el ejercicio y se aplica a
+// los que faltan en la sesión; si no (vueltas, cambio de rutina, misma liga),
+// cambia solo esta vez.
+const REST_STEP = 5, REST_MAX = 600;
+const REST_ADJ_LABEL = { prep: 'Preparación', variant: 'Cambio de lado', set: 'Entre series', rep: 'Entre repeticiones' };
+const REST_ADJ_TOAST = { prep: 'de preparación para', variant: 'al cambiar de lado en', set: 'entre series de', rep: 'entre repeticiones de' };
+
+function plRestAdjust(delta) {
+  const p = S.pl; if (!p) return;
+  const s = p.steps[p.i];
+  if (s.kind !== 'rest') return;
+  const target = Math.min(REST_MAX, Math.max(0, s.seconds + delta));
+  const d = target - s.seconds;
+  if (!d) return;
+  audioUnlock();
+  s.seconds = target;
+  p.left += d;
+  if (p.playing) p.endAt += d * 1000;
+  if (s.adj) {
+    const ex = s.next.ex;
+    ex.rests = { ...(ex.rests || {}), [s.adj]: target };
+    for (let k = p.i + 1; k < p.steps.length; k++) {
+      const x = p.steps[k];
+      if (x.kind === 'rest' && x.adj === s.adj && x.next.ex.id === ex.id) x.seconds = target;
+    }
+    persist();
+    showToast(`Guardado: ${fmtSecs(target)} ${REST_ADJ_TOAST[s.adj]} «${ex.name}»`);
   }
-  if (p.playing) p.endAt += sec * 1000;
+  plRecalc();
+  $('pl-rest-val').textContent = fmtSecs(target);
   plPaintTimer();
 }
 
@@ -2266,7 +2408,14 @@ function plFinish() {
   const p = S.pl; if (!p) return;
   plPause();
   p.finished = true;
-  markDone(p.routineIds);
+  const real   = p.startedAt ? Math.round((Date.now() - p.startedAt) / 1000) : 0;
+  const active = Math.round(p.activeMs / 1000);
+  const paused = Math.max(0, real - active);
+  const t = todayStr();
+  (S.timeLog[t] || (S.timeLog[t] = [])).push({
+    ids: p.routineIds, title: p.title, real, active, plan: Math.round(p.total), at: new Date().toISOString(),
+  });
+  markDone(p.routineIds);   // guarda también el tiempo
   const streak = calcStreak();
   const n = p.performTotal;
 
@@ -2284,7 +2433,12 @@ function plFinish() {
     <p class="pl-done-num">${n}</p>
     <p class="pl-done-lbl">${p.steps.some(x => x.kind === 'set') ? 'series y sostenimientos' : 'sostenimientos'}</p>
     <h2 class="complete-title">${esc(p.title)}</h2>
-    <p class="complete-sub">Sesión cerrada en ${fmtDuration(p.total)}.<br>
+    <div class="pl-done-time">
+      <p class="pl-done-clock">${fmtClock(real)}</p>
+      <p class="pl-done-lbl">tiempo real</p>
+      <p class="pl-done-split">${paused >= 5 ? `${fmtClock(active)} en movimiento · ${fmtClock(paused)} en pausa · ` : ''}plan ${fmtClock(p.total)}</p>
+    </div>
+    <p class="complete-sub">
       ${streak > 1 ? `Racha de <strong>${streak} días</strong>.` : 'Primer día de racha.'}</p>
     <button class="btn-primary" onclick="plClose()">Volver al inicio</button>`;
   document.querySelectorAll('#pl-segments .pl-seg-fill').forEach(el => el.style.width = '100%');
